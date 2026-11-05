@@ -41,15 +41,13 @@ npm install && npm run dev
 ## الاختبارات
 `cd backend && npm test` (خوارزمية FIFO). مسارات الصرف والعجز والفواتير والتقارير جُرّبت على قاعدة فعلية عبر الـ API.
 
-## النشر على Dokploy (Dockerfile)
+## النشر على Dokploy: تطبيق واحد ومنفذ واحد
 
-تطبيقان من نفس المستودع، لكلٍّ **Build Type = Dockerfile**:
+`Dockerfile` في **جذر المستودع** يبني الواجهة والـ API في صورة واحدة. الواجهة هي المنفذ الوحيد المكشوف وتمرّر `/api` للـ API داخل الحاوية، فلا حاجة لتطبيق ثانٍ ولا دومين ثانٍ ولا CORS.
 
-| التطبيق | Build Path | Dockerfile | المنفذ | المتغيرات |
-|---|---|---|---|---|
-| API | `backend` | `Dockerfile` | 4000 | `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT`, `CORS_ORIGIN` |
-| الواجهة | `frontend` | `Dockerfile` | 3000 | `NEXT_PUBLIC_API_URL` (اختياري، الافتراضي `/api`), `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_COMPANY_VAT` |
-
-- الـ API يطبّق ترحيلات القاعدة تلقائياً عند كل إقلاع (`prisma migrate deploy`).
-- لخدمة الاثنين من عنوان واحد: الواجهة على المسار `/` والـ API على المسار `/api` (الخادم يعمل تحت البادئة `/api` أصلاً).
-- متغيرات `NEXT_PUBLIC_*` تُدمج وقت البناء؛ غيّرها ثم أعد البناء (Rebuild).
+- **Build Type:** Dockerfile · **Build Path:** `/` (الجذر) · **Dockerfile:** `Dockerfile`
+- **المنفذ:** `3000` (أو أي قيمة في `PORT`، ويطابقه منفذ النطاق أو المنفذ المنشور)
+- **المتغيرات:** `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT`, `CORS_ORIGIN` (اختياري لأن العنوان واحد)
+- ترحيلات القاعدة تُطبَّق تلقائياً عند كل إقلاع (`prisma migrate deploy`).
+- إن توقفت الواجهة أو الـ API تتوقف الحاوية كلها فيعيد Dokploy تشغيلها.
+- للنشر على أن يكون كلٌّ منهما منفصلاً ما زال `backend/Dockerfile` و`frontend/Dockerfile` متاحين.
