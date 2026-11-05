@@ -64,7 +64,8 @@ export interface Reports {
 export interface PurchaseRequestRow {
   id: string; number: number; status: 'OPEN' | 'ORDERED' | 'RECEIVED' | 'CANCELLED'; createdAt: string;
   /** REORDER: أُنشئ تلقائياً عند بلوغ الحد الأدنى · SHORTAGE: ناتج عن عجز في طلب */
-  kind: 'REORDER' | 'SHORTAGE';
+  kind: 'REORDER' | 'SHORTAGE' | 'CONSOLIDATED';
+  mergedFrom?: { number: number; request: { number: number } | null }[];
   request: { id: string; number: number; department: { name: string }; branch: { name: string } } | null;
   lines: { id: string; quantity: number; item: { name: string; sku: string; unit: string } }[];
 }

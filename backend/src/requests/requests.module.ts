@@ -328,9 +328,15 @@ export class RequestsService {
             data: shortages.map((s) => ({ ...s, purchaseRequestId: openPr.id })),
           });
         } else {
-          await tx.purchaseRequest.create({
-            data: { number: await nextNumber(tx, 'purchase'), requestId: id, lines: { create: shortages } },
+          // العجز قد يكون مغطى بطلب مجمّع نشط ضُمّ إليه طلب الشراء الأصلي
+          const coveredByMerge = await tx.purchaseRequest.findFirst({
+            where: { requestId: id, mergedInto: { status: { in: ['OPEN', 'ORDERED'] } } },
           });
+          if (!coveredByMerge) {
+            await tx.purchaseRequest.create({
+              data: { number: await nextNumber(tx, 'purchase'), requestId: id, lines: { create: shortages } },
+            });
+          }
         }
       } else if (openPr) {
         await tx.purchaseRequest.update({ where: { id: openPr.id }, data: { status: 'RECEIVED' } });

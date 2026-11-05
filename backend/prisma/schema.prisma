@@ -274,12 +274,16 @@ model PurchaseRequest {
   number    Int                   @unique
   requestId String?                // فارغ في طلب الشراء التلقائي عند بلوغ الحد الأدنى
   request   Request?              @relation(fields: [requestId], references: [id])
-  kind      String                @default("SHORTAGE") // SHORTAGE: عجز طلب · REORDER: حد أدنى
+  kind      String                @default("SHORTAGE") // SHORTAGE: عجز طلب · REORDER: حد أدنى · CONSOLIDATED: مجمّع من عدة طلبات
   status    PurchaseRequestStatus @default(OPEN)
   createdAt DateTime              @default(now())
   lines     PurchaseRequestLine[]
   invoices  PurchaseInvoice[]
   supplies  SupplyReceipt[]
+  // التجميع: الطلبات المصدر تُلغى ويشير كلٌّ منها إلى الطلب المجمّع
+  mergedIntoId String?
+  mergedInto   PurchaseRequest?  @relation("PRMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom   PurchaseRequest[] @relation("PRMerge")
 
   @@index([status])
 }

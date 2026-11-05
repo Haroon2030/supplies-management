@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Zap } from 'lucide-react';
+import { Layers, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
@@ -24,8 +24,14 @@ export default function PurchaseRequestsPage() {
     onSuccess: () => { toast.success(t('deletedOk')); void qc.invalidateQueries({ queryKey: ['purchase-requests'] }); void qc.invalidateQueries({ queryKey: ['dashboard'] }); },
     onError: (e: Error) => toast.error(e.message),
   });
+  const merge = useMutation({
+    mutationFn: () => api('/purchase-requests/merge', { method: 'POST', json: {} }),
+    onSuccess: () => { toast.success(t('mergeDone')); void qc.invalidateQueries({ queryKey: ['purchase-requests'] }); void qc.invalidateQueries({ queryKey: ['dashboard'] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const q = useQuery({ queryKey: ['purchase-requests'], queryFn: () => api<PurchaseRequestRow[]>('/purchase-requests'), refetchInterval: 30_000 });
   const pg = usePagination(q.data ?? []);
+  const activeCount = (q.data ?? []).filter((x) => (x.status === 'OPEN' || x.status === 'ORDERED') && x.kind !== 'CONSOLIDATED').length;
   const ordered = useMutation({
     mutationFn: (id: string) => api(`/purchase-requests/${id}/ordered`, { method: 'POST' }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['purchase-requests'] }); void qc.invalidateQueries({ queryKey: ['dashboard'] }); },
@@ -34,7 +40,14 @@ export default function PurchaseRequestsPage() {
 
   return (
     <>
-      <PageHeader title={t('navPurchase')} />
+      <PageHeader
+        title={t('navPurchase')}
+        actions={activeCount >= 2 && (
+          <Button variant="glass" loading={merge.isPending} onClick={() => { if (window.confirm(t('confirmMerge'))) merge.mutate(); }}>
+            <Layers className="size-4" /> {t('mergeAll')} ({activeCount})
+          </Button>
+        )}
+      />
       {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.length ? (
         <Card><EmptyState title={t('emptyPR')} /></Card>
       ) : (
@@ -45,7 +58,14 @@ export default function PurchaseRequestsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-lg font-bold tabular-nums">#{p.number}</p>
-                  {p.request ? (
+                  {p.kind === 'CONSOLIDATED' ? (
+                    <div className="space-y-0.5 text-sm">
+                      <p className="flex items-center gap-1.5 text-plum"><Layers className="size-3.5" aria-hidden /> {t('consolidatedLabel')}</p>
+                      {!!p.mergedFrom?.length && (
+                        <p className="text-xs text-muted">{t('mergedFromLabel')} {p.mergedFrom.map((m) => `#${m.number}`).join('، ')}</p>
+                      )}
+                    </div>
+                  ) : p.request ? (
                     <Link href={`/requests/${p.request.id}`} className="text-sm text-accent-soft hover:underline">
                       {t('forRequest')} {p.request.number} · {p.request.department.name} · {p.request.branch.name}
                     </Link>
