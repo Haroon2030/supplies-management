@@ -1,10 +1,10 @@
-// Centralized Procurement & Inventory — data model (SQLite محلي)
+// Centralized Procurement & Inventory — data model (MySQL)
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -115,10 +115,10 @@ model PurchaseInvoice {
   branchId      String
   branch        Branch        @relation(fields: [branchId], references: [id])
   invoiceDate   DateTime
-  subtotal      Decimal       @default(0) // قبل الضريبة
+  subtotal      Decimal       @default(0) @db.Decimal(14, 2) // قبل الضريبة
   vatRate       Float         @default(15) // نسبة ضريبة القيمة المضافة %
-  total         Decimal       // شامل الضريبة
-  notes         String?
+  total         Decimal @db.Decimal(14, 2) // شامل الضريبة
+  notes         String? @db.Text
   createdById   String
   createdBy     User          @relation(fields: [createdById], references: [id])
   createdAt     DateTime      @default(now())
@@ -137,7 +137,7 @@ model InvoiceLine {
   itemId    String
   item      Item            @relation(fields: [itemId], references: [id])
   quantity  Int
-  unitCost  Decimal        
+  unitCost  Decimal @db.Decimal(12, 2)        
   batch     StockBatch?
 }
 
@@ -150,7 +150,7 @@ model StockBatch {
   invoiceLine InvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
   qtyReceived Int
   qtyRemaining Int
-  unitCost    Decimal    
+  unitCost    Decimal @db.Decimal(12, 2)    
   receivedAt  DateTime
   allocations IssueAllocation[]
 
@@ -167,7 +167,7 @@ model Request {
   branchId     String
   branch       Branch        @relation(fields: [branchId], references: [id])
   status       RequestStatus @default(PENDING_MANAGER)
-  justification String?
+  justification String? @db.Text
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -199,7 +199,7 @@ model RequestEvent {
   actorId   String
   actor     User          @relation(fields: [actorId], references: [id])
   action    String        // SUBMITTED | APPROVED | REJECTED | RETURNED | RESUBMITTED | ISSUED | CANCELLED
-  note      String?
+  note      String? @db.Text
   createdAt DateTime      @default(now())
 
   @@index([requestId, createdAt])
@@ -223,7 +223,7 @@ model IssueAllocation {
   batch     StockBatch @relation(fields: [batchId], references: [id])
   itemId    String
   quantity  Int
-  unitCost  Decimal   
+  unitCost  Decimal @db.Decimal(12, 2)   
 }
 
 model PurchaseRequest {
