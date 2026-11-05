@@ -7,13 +7,6 @@ import { Button, Card, Field } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 
-const DEMO = [
-  { username: '8', pw: 'Passw0rd!', role: 'role_EMPLOYEE', name: 'سارة · تقنية المعلومات' },
-  { username: '3', pw: 'Passw0rd!', role: 'role_DEPT_MANAGER', name: 'خالد · تقنية المعلومات' },
-  { username: '2', pw: 'Passw0rd!', role: 'role_WAREHOUSE_KEEPER', name: 'ماجد · المستودع' },
-  { username: '1', pw: '', role: 'role_ADMIN', name: 'سلطان · النظام' },
-] as const;
-
 export default function LoginPage() {
   const { t, toggle } = useI18n();
   const { login, user, ready } = useAuth();
@@ -60,22 +53,6 @@ export default function LoginPage() {
           </form>
         </Card>
 
-        <div className="mt-6">
-          <p className="mb-2 text-sm font-medium">{t('demoAccounts')} <span className="font-normal text-muted">— {t('demoHint')} <bdi dir="ltr" className="font-mono text-fg/80">Passw0rd!</bdi></span></p>
-          <div className="grid grid-cols-2 gap-2">
-            {DEMO.map((d) => (
-              <button
-                key={d.username}
-                type="button"
-                onClick={() => { setUsername(d.username); setPassword(d.pw); }}
-                className="glass rounded-xl px-3 py-2.5 text-start transition-colors hover:bg-white/10"
-              >
-                <span className="block text-sm font-semibold">{t(d.role)}</span>
-                <span className="block truncate text-xs text-muted">{d.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
