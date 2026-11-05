@@ -46,12 +46,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  useEffect(() => { if (ready && !user) router.replace('/login'); }, [ready, user, router]);
+  // «من نحن» صفحة عامة: تُفتح من شاشة الدخول دون تسجيل
+  const publicPage = pathname === '/about';
+  useEffect(() => { if (ready && !user && !publicPage) router.replace('/login'); }, [ready, user, publicPage, router]);
   useEffect(() => setOpen(false), [pathname]);
 
   const dash = useQuery({ queryKey: ['dashboard'], queryFn: () => api<Dashboard>('/dashboard'), enabled: !!user, refetchInterval: 30_000 });
 
-  if (!ready || !user) return <Spinner />;
+  if (!ready) return <Spinner />;
+  if (!user && publicPage) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="mb-6 flex justify-end">
+          <Link href="/login" className="rounded-full px-4 py-2 text-sm font-medium text-accent-soft ring-1 ring-inset ring-accent/40 hover:bg-accent/10">{t('signIn')}</Link>
+        </div>
+        {children}
+      </div>
+    );
+  }
+  if (!user) return <Spinner />;
 
   const items = NAV.filter((n) => !n.roles || n.roles.includes(user.role) || user.role === 'ADMIN')
     // المدير العام: مدخل "الطلبات" الخاص به فقط، وبلا "طلب جديد" لأنه غير مرتبط بإدارة

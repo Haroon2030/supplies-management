@@ -1,6 +1,7 @@
 'use client';
 
 import { Boxes } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, Card, Field } from '@/components/ui';
@@ -53,8 +54,8 @@ export default function LoginPage() {
           </form>
         </Card>
 
-        <p className="mt-5 text-center text-sm text-muted">
-          {t('supportLine')}: <a href="tel:0531847156" dir="ltr" className="font-semibold text-accent-soft hover:underline">0531847156</a>
+        <p className="mt-5 text-center text-sm">
+          <Link href="/about" className="font-semibold text-accent-soft hover:underline">{t('navAbout')}</Link>
         </p>
       </div>
     </div>
