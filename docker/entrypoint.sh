@@ -6,6 +6,11 @@ set -euo pipefail
 cd /app/backend
 npx prisma migrate deploy
 
+# المدير العام: يُنشأ/يُحدَّث عند النشر إذا ضُبط ADMIN_PASSWORD (و ADMIN_USERNAME، الافتراضي 1)
+if [ -n "${ADMIN_PASSWORD:-}" ]; then
+  node scripts/ensure-admin.js || echo "تحذير: تعذر تجهيز المدير العام (يستمر التشغيل)"
+fi
+
 PORT=4000 node dist/main &
 API_PID=$!
 

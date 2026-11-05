@@ -39,6 +39,7 @@ COPY --from=backend-build /app/backend/node_modules ./backend/node_modules
 COPY --from=backend-build /app/backend/dist ./backend/dist
 COPY backend/package*.json ./backend/
 COPY backend/prisma ./backend/prisma
+COPY backend/scripts ./backend/scripts
 COPY --from=frontend-build /app/frontend/.next/standalone ./frontend
 COPY --from=frontend-build /app/frontend/.next/static ./frontend/.next/static
 COPY docker/entrypoint.sh /entrypoint.sh
