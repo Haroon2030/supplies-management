@@ -19,7 +19,8 @@ interface SetupItem {
 interface Category { id: string; name: string }
 interface Branch { id: string; name: string; code: string | null; city: string | null; departments: { id: string; name: string }[] }
 
-type Tab = 'items' | 'branches';
+type Tab = 'items' | 'branches' | 'departments';
+const TAB_LABEL = { items: 'tabItems', branches: 'tabOrg', departments: 'tabDepartments' } as const;
 
 export default function SetupPage() {
   const { t } = useI18n();
@@ -34,17 +35,17 @@ export default function SetupPage() {
     <>
       <PageHeader title={t('navSetup')} subtitle={t(tab === 'items' ? 'setupItemsHint' : 'setupBranchesHint')} />
       <div role="tablist" className="mb-4 flex gap-2">
-        {(['items', 'branches'] as const).map((k) => (
+        {(['items', 'branches', 'departments'] as const).map((k) => (
           <button
             key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={cn('rounded-full px-4 py-1.5 text-sm font-medium ring-1 ring-inset transition-colors',
               tab === k ? 'bg-accent/18 text-accent-soft ring-accent/40' : 'text-muted ring-white/12 hover:bg-white/6 hover:text-fg')}
           >
-            {t(k === 'items' ? 'tabItems' : 'tabOrg')}
+            {t(TAB_LABEL[k])}
           </button>
         ))}
       </div>
-      {tab === 'items' ? <ItemsTab /> : <BranchesTab />}
+      {tab === 'items' ? <ItemsTab /> : tab === 'branches' ? <BranchesTab /> : <DepartmentsTab />}
     </>
   );
 }
@@ -142,6 +143,78 @@ function ItemDialog({ item, onClose }: { item: SetupItem | null; onClose: () => 
         <Field label={t('itemDescription')}>
           <textarea className="field min-h-24" rows={3} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
         </Field>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
+          <Button type="submit" loading={save.isPending}>{t('save')}</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/* --------------------------------- الإدارات --------------------------------- */
+interface DeptRow { id: string; name: string; branch: Branch }
+
+function DepartmentsTab() {
+  const { t } = useI18n();
+  const q = useQuery({ queryKey: ['branches'], queryFn: () => api<Branch[]>('/branches') });
+  const [editing, setEditing] = useState<DeptRow | 'new' | null>(null);
+  const rows = useMemo<DeptRow[]>(
+    () => (q.data ?? []).flatMap((b) => b.departments.map((d) => ({ ...d, branch: b }))),
+    [q.data],
+  );
+  const pg = usePagination(rows);
+
+  return (
+    <>
+      <div className="mb-4 flex justify-end">
+        <Button onClick={() => setEditing('new')} disabled={!q.data?.length}><Plus className="size-4" /> {t('newDepartment')}</Button>
+      </div>
+      <Card>
+        {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !rows.length ? <EmptyState title={t('noDepartments')} /> : (
+          <TableWrap>
+            <thead><tr><th className={th}>{t('deptName')}</th><th className={th}>{t('branch')}</th><th className={th}>{t('branchNumber')}</th><th className={th} /></tr></thead>
+            <tbody>
+              {pg.slice.map((d) => (
+                <tr key={d.id} className="hover:bg-white/5">
+                  <td className={cn(td, 'font-medium')}>{d.name}</td>
+                  <td className={cn(td, 'text-muted')}>{d.branch.name}</td>
+                  <td className={cn(td, 'tabular-nums text-muted')} dir="ltr">{d.branch.code || '—'}</td>
+                  <td className={td}><Button variant="ghost" size="sm" onClick={() => setEditing(d)}><Pencil className="size-3.5" /> {t('edit')}</Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </TableWrap>
+        )}
+        <Pagination {...pg} onPage={pg.setPage} />
+      </Card>
+      {editing && <DeptDialog dept={editing === 'new' ? null : editing} branches={q.data ?? []} onClose={() => setEditing(null)} />}
+    </>
+  );
+}
+
+function DeptDialog({ dept, branches, onClose }: { dept: DeptRow | null; branches: Branch[]; onClose: () => void }) {
+  const { t } = useI18n();
+  const qc = useQueryClient();
+  const [name, setName] = useState(dept?.name ?? '');
+  const [branchId, setBranchId] = useState(dept?.branch.id ?? '');
+  const save = useMutation({
+    mutationFn: () => dept
+      ? api(`/admin/departments/${dept.id}`, { method: 'PATCH', json: { name } })
+      : api('/admin/departments', { method: 'POST', json: { name, branchId } }),
+    onSuccess: () => { toast.success(t('saved')); void qc.invalidateQueries({ queryKey: ['branches'] }); onClose(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={dept ? t('editDepartment') : t('newDepartment')}>
+      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+        <Field label={t('branch')}>
+          <select className="field" required disabled={!!dept} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+            <option value="">—</option>
+            {branches.map((b) => <option key={b.id} value={b.id}>{b.code ? `${b.code} — ${b.name}` : b.name}</option>)}
+          </select>
+        </Field>
+        <Field label={t('deptName')}><input className="field" required minLength={2} autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
           <Button type="submit" loading={save.isPending}>{t('save')}</Button>
