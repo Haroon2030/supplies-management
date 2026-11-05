@@ -86,6 +86,7 @@ export class RequestsService {
         requester: { select: { fullName: true } },
         department: { select: { name: true } },
         branch: { select: { name: true } },
+        section: { select: { name: true } },
         lines: { select: { quantity: true } },
       },
     });

@@ -88,7 +88,8 @@ function RequestsInner() {
           <TableWrap>
             <thead>
               <tr>
-                <th className={th}>#</th><th className={th}>{t('requester')}</th><th className={th}>{t('department')}</th>
+                <th className={th}>#</th><th className={th}>{t('requester')}</th><th className={th}>{t('branch')}</th>
+                <th className={th}>{t('department')}</th><th className={th}>{t('section')}</th>
                 <th className={th}>{t('itemsCount')}</th><th className={th}>{t('date')}</th><th className={th}>{t('status')}</th>
               </tr>
             </thead>
@@ -99,7 +100,9 @@ function RequestsInner() {
                     <Link href={`/requests/${r.id}`} className="hover:text-accent-soft" onClick={(e) => e.stopPropagation()}>{r.number}</Link>
                   </td>
                   <td className={td}>{r.requester.fullName}</td>
-                  <td className={td}><span>{r.department.name}</span> <span className="text-xs text-muted">· {r.branch.name}</span></td>
+                  <td className={td}>{r.branch.name.trim()}</td>
+                  <td className={td}>{r.department.name.trim()}</td>
+                  <td className={cn(td, 'text-muted')}>{r.section?.name.trim() || '—'}</td>
                   <td className={cn(td, 'tabular-nums')}>{fmt.num(r.lines.length)} <span className="text-xs text-muted">({fmt.num(r.lines.reduce((s, l) => s + l.quantity, 0))} {t('units')})</span></td>
                   <td className={cn(td, 'text-muted')}>{fmt.date(r.createdAt)}</td>
                   <td className={td}><Badge tone={statusTone[r.status]}>{t(`st_${r.status}`)}</Badge></td>

@@ -18,7 +18,7 @@ export interface Item {
 
 export interface RequestRow {
   id: string; number: number; status: RequestStatus; createdAt: string;
-  requester: { fullName: string }; department: { name: string }; branch: { name: string };
+  requester: { fullName: string }; department: { name: string }; branch: { name: string }; section?: { name: string } | null;
   lines: { quantity: number }[];
 }
 
