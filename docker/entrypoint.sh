@@ -9,8 +9,15 @@ npx prisma migrate deploy
 PORT=4000 node dist/main &
 API_PID=$!
 
+# المنفذ 4000 محجوز للـ API الداخلي؛ لو ضُبط PORT=4000 بالخطأ تتنافس الخدمتان عليه فيسقط الـ API (EADDRINUSE)
+WEB_PORT="${PORT:-3000}"
+if [ "$WEB_PORT" = "4000" ]; then
+  echo "تنبيه: PORT=4000 محجوز للـ API الداخلي، سيعمل التطبيق على 3000. اضبط PORT=3000 في المتغيرات."
+  WEB_PORT=3000
+fi
+
 cd /app/frontend
-HOSTNAME=0.0.0.0 PORT="${PORT:-3000}" node server.js &
+HOSTNAME=0.0.0.0 PORT="$WEB_PORT" node server.js &
 WEB_PID=$!
 
 trap 'kill "$API_PID" "$WEB_PID" 2>/dev/null || true' TERM INT
