@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -17,10 +17,11 @@ interface SetupItem {
   categoryId: string; category: { id: string; name: string };
 }
 interface Category { id: string; name: string }
-interface Branch { id: string; name: string; code: string | null; city: string | null; departments: { id: string; name: string }[] }
+interface Branch { id: string; name: string; code: string | null; city: string | null }
 
 type Tab = 'items' | 'branches' | 'departments';
-const TAB_LABEL = { items: 'tabItems', branches: 'tabOrg', departments: 'tabDepartments' } as const;
+const HINT = { items: 'setupItemsHint', branches: 'setupBranchesHint', departments: 'setupDeptsHint' } as const;
+const TAB_LABEL = { items: 'tabItems', branches: 'tabBranches', departments: 'tabDepartments' } as const;
 
 export default function SetupPage() {
   const { t } = useI18n();
@@ -33,7 +34,7 @@ export default function SetupPage() {
 
   return (
     <>
-      <PageHeader title={t('navSetup')} subtitle={t(tab === 'items' ? 'setupItemsHint' : 'setupBranchesHint')} />
+      <PageHeader title={t('navSetup')} subtitle={t(HINT[tab])} />
       <div role="tablist" className="mb-4 flex gap-2">
         {(['items', 'branches', 'departments'] as const).map((k) => (
           <button
@@ -153,33 +154,26 @@ function ItemDialog({ item, onClose }: { item: SetupItem | null; onClose: () => 
 }
 
 /* --------------------------------- الإدارات --------------------------------- */
-interface DeptRow { id: string; name: string; branch: Branch }
+// الإدارة كيان مستقل: اسم فقط، غير مرتبط بالفروع.
+interface Dept { id: string; name: string }
 
 function DepartmentsTab() {
   const { t } = useI18n();
-  const q = useQuery({ queryKey: ['branches'], queryFn: () => api<Branch[]>('/branches') });
-  const [editing, setEditing] = useState<DeptRow | 'new' | null>(null);
-  const rows = useMemo<DeptRow[]>(
-    () => (q.data ?? []).flatMap((b) => b.departments.map((d) => ({ ...d, branch: b }))),
-    [q.data],
-  );
-  const pg = usePagination(rows);
+  const q = useQuery({ queryKey: ['departments'], queryFn: () => api<Dept[]>('/departments') });
+  const [editing, setEditing] = useState<Dept | 'new' | null>(null);
+  const pg = usePagination(q.data ?? []);
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <Button onClick={() => setEditing('new')} disabled={!q.data?.length}><Plus className="size-4" /> {t('newDepartment')}</Button>
-      </div>
+      <div className="mb-4 flex justify-end"><Button onClick={() => setEditing('new')}><Plus className="size-4" /> {t('newDepartment')}</Button></div>
       <Card>
-        {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !rows.length ? <EmptyState title={t('noDepartments')} /> : (
+        {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.length ? <EmptyState title={t('noDepartments')} /> : (
           <TableWrap>
-            <thead><tr><th className={th}>{t('deptName')}</th><th className={th}>{t('branch')}</th><th className={th}>{t('branchNumber')}</th><th className={th} /></tr></thead>
+            <thead><tr><th className={th}>{t('deptName')}</th><th className={th} /></tr></thead>
             <tbody>
               {pg.slice.map((d) => (
                 <tr key={d.id} className="hover:bg-white/5">
                   <td className={cn(td, 'font-medium')}>{d.name}</td>
-                  <td className={cn(td, 'text-muted')}>{d.branch.name}</td>
-                  <td className={cn(td, 'tabular-nums text-muted')} dir="ltr">{d.branch.code || '—'}</td>
                   <td className={td}><Button variant="ghost" size="sm" onClick={() => setEditing(d)}><Pencil className="size-3.5" /> {t('edit')}</Button></td>
                 </tr>
               ))}
@@ -188,32 +182,25 @@ function DepartmentsTab() {
         )}
         <Pagination {...pg} onPage={pg.setPage} />
       </Card>
-      {editing && <DeptDialog dept={editing === 'new' ? null : editing} branches={q.data ?? []} onClose={() => setEditing(null)} />}
+      {editing && <DeptDialog dept={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
 
-function DeptDialog({ dept, branches, onClose }: { dept: DeptRow | null; branches: Branch[]; onClose: () => void }) {
+function DeptDialog({ dept, onClose }: { dept: Dept | null; onClose: () => void }) {
   const { t } = useI18n();
   const qc = useQueryClient();
   const [name, setName] = useState(dept?.name ?? '');
-  const [branchId, setBranchId] = useState(dept?.branch.id ?? '');
   const save = useMutation({
     mutationFn: () => dept
       ? api(`/admin/departments/${dept.id}`, { method: 'PATCH', json: { name } })
-      : api('/admin/departments', { method: 'POST', json: { name, branchId } }),
-    onSuccess: () => { toast.success(t('saved')); void qc.invalidateQueries({ queryKey: ['branches'] }); onClose(); },
+      : api('/admin/departments', { method: 'POST', json: { name } }),
+    onSuccess: () => { toast.success(t('saved')); void qc.invalidateQueries({ queryKey: ['departments'] }); onClose(); },
     onError: (e: Error) => toast.error(e.message),
   });
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()} title={dept ? t('editDepartment') : t('newDepartment')}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
-        <Field label={t('branch')}>
-          <select className="field" required disabled={!!dept} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-            <option value="">—</option>
-            {branches.map((b) => <option key={b.id} value={b.id}>{b.code ? `${b.code} — ${b.name}` : b.name}</option>)}
-          </select>
-        </Field>
         <Field label={t('deptName')}><input className="field" required minLength={2} autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
@@ -224,92 +211,60 @@ function DeptDialog({ dept, branches, onClose }: { dept: DeptRow | null; branche
   );
 }
 
-/* ----------------------------- الفروع والإدارات ----------------------------- */
-type Dlg =
-  | { kind: 'branch'; branch: Branch | null }
-  | { kind: 'dept'; branch: Branch; dept: { id: string; name: string } | null };
-
+/* ---------------------------------- الفروع ---------------------------------- */
 function BranchesTab() {
   const { t } = useI18n();
   const q = useQuery({ queryKey: ['branches'], queryFn: () => api<Branch[]>('/branches') });
-  const [dlg, setDlg] = useState<Dlg | null>(null);
+  const [editing, setEditing] = useState<Branch | 'new' | null>(null);
+  const pg = usePagination(q.data ?? []);
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><Button onClick={() => setDlg({ kind: 'branch', branch: null })}><Plus className="size-4" /> {t('newBranch')}</Button></div>
-      {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.length ? <Card><EmptyState title={t('none')} /></Card> : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {q.data.map((b) => (
-            <Card key={b.id}>
-              <CardHeader
-                title={<span className="flex items-center gap-2"><Building2 className="size-4 text-accent-soft" aria-hidden />{b.name}</span>}
-                hint={[b.code ? `${t('branchNumber')}: ${b.code}` : null, b.city].filter(Boolean).join(' · ') || undefined}
-                action={
-                  <span className="flex gap-1">
-                    <Button variant="ghost" size="sm" aria-label={t('editBranch')} onClick={() => setDlg({ kind: 'branch', branch: b })}><Pencil className="size-3.5" /></Button>
-                    <Button variant="glass" size="sm" onClick={() => setDlg({ kind: 'dept', branch: b, dept: null })}><Plus className="size-4" /> {t('newDepartment')}</Button>
-                  </span>
-                }
-              />
-              <ul className="p-4 pt-3">
-                {b.departments.length ? b.departments.map((d) => (
-                  <li key={d.id} className="group flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-white/5">
-                    <span>{d.name}</span>
-                    <button
-                      type="button" aria-label={t('editDepartment')} onClick={() => setDlg({ kind: 'dept', branch: b, dept: d })}
-                      className="rounded-md p-1 text-muted hover:bg-white/8 hover:text-fg"
-                    ><Pencil className="size-3.5" /></button>
-                  </li>
-                )) : <li className="px-3 py-4 text-sm text-muted">{t('noDepartments')}</li>}
-              </ul>
-            </Card>
-          ))}
-        </div>
-      )}
-      {dlg && <OrgDialog key={dlg.kind + (dlg.kind === 'branch' ? dlg.branch?.id : dlg.dept?.id) + dlg.branch?.id} dlg={dlg} onClose={() => setDlg(null)} />}
+      <div className="mb-4 flex justify-end"><Button onClick={() => setEditing('new')}><Plus className="size-4" /> {t('newBranch')}</Button></div>
+      <Card>
+        {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.length ? <EmptyState title={t('none')} /> : (
+          <TableWrap>
+            <thead><tr><th className={th}>{t('branchNumber')}</th><th className={th}>{t('branchName')}</th><th className={th}>{t('city')}</th><th className={th} /></tr></thead>
+            <tbody>
+              {pg.slice.map((b) => (
+                <tr key={b.id} className="hover:bg-white/5">
+                  <td className={cn(td, 'tabular-nums')} dir="ltr">{b.code || '—'}</td>
+                  <td className={cn(td, 'font-medium')}>{b.name}</td>
+                  <td className={cn(td, 'text-muted')}>{b.city || '—'}</td>
+                  <td className={td}><Button variant="ghost" size="sm" onClick={() => setEditing(b)}><Pencil className="size-3.5" /> {t('edit')}</Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </TableWrap>
+        )}
+        <Pagination {...pg} onPage={pg.setPage} />
+      </Card>
+      {editing && <BranchDialog branch={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
 
-function OrgDialog({ dlg, onClose }: { dlg: Dlg; onClose: () => void }) {
+function BranchDialog({ branch, onClose }: { branch: Branch | null; onClose: () => void }) {
   const { t } = useI18n();
   const qc = useQueryClient();
-  const isBranch = dlg.kind === 'branch';
-  const [name, setName] = useState(isBranch ? dlg.branch?.name ?? '' : dlg.dept?.name ?? '');
-  const [code, setCode] = useState(isBranch ? dlg.branch?.code ?? '' : '');
-  const [city, setCity] = useState(isBranch ? dlg.branch?.city ?? '' : '');
-
+  const [name, setName] = useState(branch?.name ?? '');
+  const [code, setCode] = useState(branch?.code ?? '');
+  const [city, setCity] = useState(branch?.city ?? '');
   const save = useMutation({
-    mutationFn: () => {
-      if (dlg.kind === 'branch') {
-        return dlg.branch
-          ? api(`/admin/branches/${dlg.branch.id}`, { method: 'PATCH', json: { name, code, city } })
-          : api('/admin/branches', { method: 'POST', json: { name, code: code || undefined, city: city || undefined } });
-      }
-      return dlg.dept
-        ? api(`/admin/departments/${dlg.dept.id}`, { method: 'PATCH', json: { name } })
-        : api('/admin/departments', { method: 'POST', json: { name, branchId: dlg.branch.id } });
-    },
+    mutationFn: () => branch
+      ? api(`/admin/branches/${branch.id}`, { method: 'PATCH', json: { name, code, city } })
+      : api('/admin/branches', { method: 'POST', json: { name, code: code || undefined, city: city || undefined } }),
     onSuccess: () => { toast.success(t('saved')); void qc.invalidateQueries({ queryKey: ['branches'] }); onClose(); },
     onError: (e: Error) => toast.error(e.message),
   });
-
-  const title = isBranch
-    ? (dlg.branch ? t('editBranch') : t('newBranch'))
-    : `${dlg.dept ? t('editDepartment') : t('newDepartment')} — ${dlg.branch.name}`;
-
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()} title={title}>
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={branch ? t('editBranch') : t('newBranch')}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
-        <Field label={isBranch ? t('branchName') : t('deptName')}>
-          <input className="field" required minLength={2} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        {isBranch && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t('branchNumber')}><input className="field tabular-nums" dir="ltr" value={code} onChange={(e) => setCode(e.target.value)} /></Field>
-            <Field label={t('city')}><input className="field" value={city} onChange={(e) => setCity(e.target.value)} /></Field>
-          </div>
-        )}
+        <Field label={t('branchName')}><input className="field" required minLength={2} autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t('branchNumber')}><input className="field tabular-nums" dir="ltr" value={code} onChange={(e) => setCode(e.target.value)} /></Field>
+          <Field label={t('city')}><input className="field" value={city} onChange={(e) => setCity(e.target.value)} /></Field>
+        </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
           <Button type="submit" loading={save.isPending}>{t('save')}</Button>

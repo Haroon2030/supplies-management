@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -17,7 +17,8 @@ interface AdminUser {
   id: string; email: string; username: string | null; fullName: string; role: Role; active: boolean;
   department: { id: string; name: string } | null; branch: { id: string; name: string } | null;
 }
-interface Branch { id: string; name: string; city: string | null; departments: { id: string; name: string }[] }
+interface Branch { id: string; name: string }
+interface Dept { id: string; name: string }
 
 const ROLES: Role[] = ['EMPLOYEE', 'DEPT_MANAGER', 'WAREHOUSE_KEEPER', 'ADMIN'];
 
@@ -25,7 +26,6 @@ export default function AdminPage() {
   const { t } = useI18n();
   const { user, ready } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<'users' | 'org'>('users');
 
   useEffect(() => { if (ready && user && user.role !== 'ADMIN') router.replace('/'); }, [ready, user, router]);
   if (user?.role !== 'ADMIN') return <Spinner />;
@@ -33,18 +33,7 @@ export default function AdminPage() {
   return (
     <>
       <PageHeader title={t('navAdmin')} />
-      <div role="tablist" className="mb-4 flex gap-2">
-        {(['users', 'org'] as const).map((k) => (
-          <button
-            key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-            className={cn('rounded-full px-4 py-1.5 text-sm font-medium ring-1 ring-inset transition-colors',
-              tab === k ? 'bg-accent/18 text-accent-soft ring-accent/40' : 'text-muted ring-white/12 hover:bg-white/6 hover:text-fg')}
-          >
-            {t(k === 'users' ? 'tabUsers' : 'tabOrg')}
-          </button>
-        ))}
-      </div>
-      {tab === 'users' ? <Users selfId={user.id} /> : <Org />}
+      <Users selfId={user.id} />
     </>
   );
 }
@@ -97,7 +86,8 @@ function UserDialog({ user, isSelf, onClose }: { user: AdminUser | null; isSelf:
   });
   const needsDept = f.role === 'EMPLOYEE' || f.role === 'DEPT_MANAGER';
   const needsBranch = f.role !== 'ADMIN';
-  const depts = branches.data?.find((b) => b.id === f.branchId)?.departments ?? [];
+  const deptsQ = useQuery({ queryKey: ['departments'], queryFn: () => api<Dept[]>('/departments') });
+  const depts = deptsQ.data ?? [];
 
   const save = useMutation({
     mutationFn: () => {
@@ -131,7 +121,7 @@ function UserDialog({ user, isSelf, onClose }: { user: AdminUser | null; isSelf:
           </Field>
           {needsBranch && (
             <Field label={t('branch')}>
-              <select className="field" required value={f.branchId} onChange={(e) => setF({ ...f, branchId: e.target.value, departmentId: '' })}>
+              <select className="field" required value={f.branchId} onChange={(e) => setF({ ...f, branchId: e.target.value })}>
                 <option value="">—</option>{branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </Field>
@@ -158,58 +148,3 @@ function UserDialog({ user, isSelf, onClose }: { user: AdminUser | null; isSelf:
   );
 }
 
-/* ----------------------------- الفروع والإدارات ----------------------------- */
-function Org() {
-  const { t } = useI18n();
-  const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['branches'], queryFn: () => api<Branch[]>('/branches') });
-  const [dlg, setDlg] = useState<null | { kind: 'branch' } | { kind: 'dept'; branch: Branch }>(null);
-  const [name, setName] = useState('');
-  const [city, setCity] = useState('');
-
-  const add = useMutation({
-    mutationFn: () => dlg?.kind === 'branch'
-      ? api('/admin/branches', { method: 'POST', json: { name, city: city || undefined } })
-      : api('/admin/departments', { method: 'POST', json: { name, branchId: (dlg as { branch: Branch }).branch.id } }),
-    onSuccess: () => {
-      toast.success(t('saved'));
-      void qc.invalidateQueries({ queryKey: ['branches'] });
-      setDlg(null); setName(''); setCity('');
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  return (
-    <>
-      <div className="mb-4 flex justify-end"><Button onClick={() => setDlg({ kind: 'branch' })}><Plus className="size-4" /> {t('newBranch')}</Button></div>
-      {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.length ? <Card><EmptyState title={t('none')} /></Card> : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {q.data.map((b) => (
-            <Card key={b.id}>
-              <CardHeader
-                title={<span className="flex items-center gap-2"><Building2 className="size-4 text-accent-soft" aria-hidden />{b.name}</span>}
-                hint={b.city ?? undefined}
-                action={<Button variant="glass" size="sm" onClick={() => setDlg({ kind: 'dept', branch: b })}><Plus className="size-4" /> {t('newDepartment')}</Button>}
-              />
-              <ul className="p-4 pt-3">
-                {b.departments.length ? b.departments.map((d) => <li key={d.id} className="rounded-lg px-3 py-2 text-sm hover:bg-white/5">{d.name}</li>)
-                  : <li className="px-3 py-4 text-sm text-muted">{t('noDepartments')}</li>}
-              </ul>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={!!dlg} onOpenChange={(o) => !o && setDlg(null)} title={dlg?.kind === 'dept' ? `${t('newDepartment')} — ${dlg.branch.name}` : t('newBranch')}>
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
-          <Field label={dlg?.kind === 'dept' ? t('deptName') : t('branchName')}><input className="field" required minLength={2} autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
-          {dlg?.kind === 'branch' && <Field label={t('city')}><input className="field" value={city} onChange={(e) => setCity(e.target.value)} /></Field>}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setDlg(null)}>{t('cancel')}</Button>
-            <Button type="submit" loading={add.isPending}>{t('save')}</Button>
-          </div>
-        </form>
-      </Dialog>
-    </>
-  );
-}

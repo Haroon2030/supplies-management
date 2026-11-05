@@ -41,7 +41,6 @@ export class CreateBranchDto {
 }
 export class CreateDepartmentDto {
   @IsString() @MinLength(2) name!: string;
-  @IsString() branchId!: string;
 }
 
 const USER_SELECT = {
@@ -57,14 +56,13 @@ export class AdminService {
     return this.prisma.user.findMany({ orderBy: [{ role: 'asc' }, { fullName: 'asc' }], select: USER_SELECT });
   }
 
-  /** الموظف والمدير يلزمهما إدارة وفرع (والإدارة تتبع الفرع)، وأمين المستودع يلزمه فرع. */
+  /** الموظف والمدير يلزمهما إدارة وفرع (مستقلان عن بعضهما)، وأمين المستودع يلزمه فرع. */
   private async checkPlacement(role: Role, departmentId?: string | null, branchId?: string | null) {
     if (role === Role.ADMIN) return;
     if (!branchId) throw new BadRequestException('اختر الفرع');
     if (role === Role.WAREHOUSE_KEEPER) return;
     if (!departmentId) throw new BadRequestException('اختر الإدارة');
-    const dept = await this.prisma.department.findUnique({ where: { id: departmentId } });
-    if (!dept || dept.branchId !== branchId) throw new BadRequestException('الإدارة المختارة لا تتبع هذا الفرع');
+    if (!(await this.prisma.department.findUnique({ where: { id: departmentId } }))) throw new BadRequestException('الإدارة غير موجودة');
   }
 
   async createUser(dto: CreateUserDto) {
@@ -127,16 +125,16 @@ export class AdminService {
   }
 
   async updateDepartment(id: string, dto: UpdateDepartmentDto) {
-    const cur = await this.prisma.department.findUniqueOrThrow({ where: { id } });
-    const dup = await this.prisma.department.findUnique({ where: { branchId_name: { branchId: cur.branchId, name: dto.name } } });
-    if (dup && dup.id !== id) throw new ConflictException('الإدارة موجودة في هذا الفرع');
-    return this.prisma.department.update({ where: { id }, data: { name: dto.name } });
+    const name = dto.name.trim();
+    const dup = await this.prisma.department.findUnique({ where: { name } });
+    if (dup && dup.id !== id) throw new ConflictException('اسم الإدارة مستخدم');
+    return this.prisma.department.update({ where: { id }, data: { name } });
   }
 
   async createDepartment(dto: CreateDepartmentDto) {
-    const dup = await this.prisma.department.findUnique({ where: { branchId_name: { branchId: dto.branchId, name: dto.name } } });
-    if (dup) throw new ConflictException('الإدارة موجودة في هذا الفرع');
-    return this.prisma.department.create({ data: dto });
+    const name = dto.name.trim();
+    if (await this.prisma.department.findUnique({ where: { name } })) throw new ConflictException('اسم الإدارة مستخدم');
+    return this.prisma.department.create({ data: { name } });
   }
 }
 

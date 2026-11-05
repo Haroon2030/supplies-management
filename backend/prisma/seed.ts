@@ -33,7 +33,7 @@ async function main() {
   const hq = await prisma.branch.create({ data: { name: 'المقر الرئيسي', city: 'الرياض' } });
   const jed = await prisma.branch.create({ data: { name: 'فرع جدة', city: 'جدة' } });
   const dmm = await prisma.branch.create({ data: { name: 'فرع الدمام', city: 'الدمام' } });
-  const mk = (branchId: string, name: string) => prisma.department.create({ data: { name, branchId } });
+  const mk = (_b: string, name: string) => prisma.department.upsert({ where: { name }, update: {}, create: { name } });
   const hqIT = await mk(hq.id, 'تقنية المعلومات');
   const hqHR = await mk(hq.id, 'الموارد البشرية');
   const hqFin = await mk(hq.id, 'المالية');

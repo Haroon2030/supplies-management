@@ -38,21 +38,16 @@ model Branch {
   name        String       @unique
   code        String?      @unique // رقم الفرع
   city        String?
-  departments Department[]
   users       User[]
   requests    Request[]
   invoices    PurchaseInvoice[]
 }
 
 model Department {
-  id        String    @id @default(cuid())
-  name      String
-  branchId  String
-  branch    Branch    @relation(fields: [branchId], references: [id])
-  users     User[]
-  requests  Request[]
-
-  @@unique([branchId, name])
+  id       String    @id @default(cuid())
+  name     String    @unique // الإدارة كيان مستقل غير مرتبط بالفروع
+  users    User[]
+  requests Request[]
 }
 
 model User {
