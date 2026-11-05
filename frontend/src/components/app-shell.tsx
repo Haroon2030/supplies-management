@@ -14,23 +14,33 @@ import type { Dashboard, Role } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Spinner } from './ui';
 
-interface NavItem { href: string; label: Key; icon: ComponentType<{ className?: string }>; roles?: Role[]; badge?: 'manager' | 'warehouse' | 'edit' }
+type NavGroup = 'home' | 'requests' | 'stock' | 'insight' | 'admin';
+interface NavItem { href: string; label: Key; icon: ComponentType<{ className?: string }>; roles?: Role[]; badge?: 'manager' | 'warehouse' | 'edit'; group: NavGroup }
+
+/** ترتيب المجموعات في القائمة وعنوان كل منها (الرئيسية بلا عنوان). */
+const GROUPS: { id: NavGroup; label?: Key }[] = [
+  { id: 'home' },
+  { id: 'requests', label: 'navGroupRequests' },
+  { id: 'stock', label: 'navGroupStock' },
+  { id: 'insight', label: 'navGroupInsight' },
+  { id: 'admin', label: 'navGroupAdmin' },
+];
 
 /** تسمية "الطلبات" تتغير بتغير الدور: طلباتي / طلبات الإدارة / طابور الصرف */
 const NAV: NavItem[] = [
-  { href: '/', label: 'navDashboard', icon: LayoutDashboard },
-  { href: '/requests', label: 'navMyRequests', icon: ClipboardList, roles: ['EMPLOYEE'], badge: 'edit' },
-  { href: '/requests', label: 'navApprovals', icon: ClipboardList, roles: ['DEPT_MANAGER', 'BRANCH_MANAGER'], badge: 'manager' },
-  { href: '/requests', label: 'navWarehouseQueue', icon: PackageCheck, roles: ['WAREHOUSE_KEEPER'], badge: 'warehouse' },
-  { href: '/requests', label: 'navRequests', icon: ClipboardList, roles: ['ADMIN'] },
-  { href: '/requests/new', label: 'navNewRequest', icon: PlusCircle },
-  { href: '/inventory', label: 'navInventory', icon: Boxes, roles: ['WAREHOUSE_KEEPER'] },
-  { href: '/invoices', label: 'navInvoices', icon: Receipt, roles: ['WAREHOUSE_KEEPER'] },
-  { href: '/supplies', label: 'navSupply', icon: PackagePlus, roles: ['WAREHOUSE_KEEPER'] },
-  { href: '/purchase-requests', label: 'navPurchase', icon: ShoppingCart, roles: ['WAREHOUSE_KEEPER'] },
-  { href: '/setup', label: 'navSetup', icon: Settings2, roles: ['ADMIN'] },
-  { href: '/admin', label: 'navAdmin', icon: Users, roles: ['ADMIN'] },
-  { href: '/reports', label: 'navReports', icon: BarChart3, roles: ['WAREHOUSE_KEEPER', 'DEPT_MANAGER'] },
+  { href: '/', label: 'navDashboard', icon: LayoutDashboard, group: 'home' },
+  { href: '/requests', label: 'navMyRequests', icon: ClipboardList, roles: ['EMPLOYEE'], badge: 'edit', group: 'requests' },
+  { href: '/requests', label: 'navApprovals', icon: ClipboardList, roles: ['DEPT_MANAGER', 'BRANCH_MANAGER'], badge: 'manager', group: 'requests' },
+  { href: '/requests', label: 'navWarehouseQueue', icon: PackageCheck, roles: ['WAREHOUSE_KEEPER'], badge: 'warehouse', group: 'requests' },
+  { href: '/requests', label: 'navRequests', icon: ClipboardList, roles: ['ADMIN'], group: 'requests' },
+  { href: '/requests/new', label: 'navNewRequest', icon: PlusCircle, group: 'requests' },
+  { href: '/inventory', label: 'navInventory', icon: Boxes, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
+  { href: '/invoices', label: 'navInvoices', icon: Receipt, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
+  { href: '/supplies', label: 'navSupply', icon: PackagePlus, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
+  { href: '/purchase-requests', label: 'navPurchase', icon: ShoppingCart, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
+  { href: '/reports', label: 'navReports', icon: BarChart3, roles: ['WAREHOUSE_KEEPER', 'DEPT_MANAGER'], group: 'insight' },
+  { href: '/setup', label: 'navSetup', icon: Settings2, roles: ['ADMIN'], group: 'admin' },
+  { href: '/admin', label: 'navAdmin', icon: Users, roles: ['ADMIN'], group: 'admin' },
 ];
 
 /** المرحلة التي تنتظر إجراء من كل دور (تغذي الجرس). */
@@ -139,26 +149,35 @@ export function AppShell({ children }: { children: ReactNode }) {
             open ? 'fixed inset-x-3 top-[84px] max-h-[calc(100vh-100px)] overflow-y-auto' : 'hidden',
           )}
         >
-          <nav aria-label="main" className="flex flex-col gap-2">
-            {items.map((n) => {
-              const active = n.href === activeHref;
-              const count = badgeValue(n.badge);
+          <nav aria-label="main" className="flex flex-col gap-4">
+            {GROUPS.map((g) => {
+              const list = items.filter((n) => n.group === g.id);
+              if (!list.length) return null;
               return (
-                <Link
-                  key={n.href + n.label}
-                  href={n.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'flex min-h-12 items-center gap-3 rounded-2xl px-4 text-[15px] font-medium',
-                    active ? 'nav-active' : 'bg-white/[0.04] text-fg/80 ring-1 ring-inset ring-white/8 hover:bg-white/10 hover:text-fg',
-                  )}
-                >
-                  <n.icon className="size-5 shrink-0" aria-hidden />
-                  <span className="flex-1">{t(n.label)}</span>
-                  {count > 0 && (
-                    <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums', active ? 'bg-white/25 text-white' : 'bg-accent/20 text-accent-soft')}>{count}</span>
-                  )}
-                </Link>
+                <div key={g.id} role="group" aria-label={g.label ? t(g.label) : undefined} className="flex flex-col gap-1.5">
+                  {g.label && <p className="px-3 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted/80">{t(g.label)}</p>}
+                  {list.map((n) => {
+                    const active = n.href === activeHref;
+                    const count = badgeValue(n.badge);
+                    return (
+                      <Link
+                        key={n.href + n.label}
+                        href={n.href}
+                        aria-current={active ? 'page' : undefined}
+                        className={cn(
+                          'flex min-h-11 items-center gap-3 rounded-2xl px-4 text-[15px] font-medium',
+                          active ? 'nav-active' : 'text-fg/80 hover:bg-white/10 hover:text-fg',
+                        )}
+                      >
+                        <n.icon className="size-[18px] shrink-0" aria-hidden />
+                        <span className="flex-1">{t(n.label)}</span>
+                        {count > 0 && (
+                          <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums', active ? 'bg-white/25 text-white' : 'bg-accent/20 text-accent-soft')}>{count}</span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
               );
             })}
           </nav>
