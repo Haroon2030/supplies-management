@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import {
-  BarChart3, Bell, Boxes, Info, ClipboardList, Languages, LayoutDashboard, LogOut, Menu, PackageCheck, PlusCircle, Receipt, ShoppingCart, Users, X,
+  BarChart3, Bell, Boxes, Info, ClipboardList, Languages, LayoutDashboard, LogOut, Menu, PackageCheck, PlusCircle, Receipt, Settings2, ShoppingCart, Users, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -27,6 +27,7 @@ const NAV: NavItem[] = [
   { href: '/inventory', label: 'navInventory', icon: Boxes, roles: ['WAREHOUSE_KEEPER'] },
   { href: '/invoices', label: 'navInvoices', icon: Receipt, roles: ['WAREHOUSE_KEEPER'] },
   { href: '/purchase-requests', label: 'navPurchase', icon: ShoppingCart, roles: ['WAREHOUSE_KEEPER'] },
+  { href: '/setup', label: 'navSetup', icon: Settings2, roles: ['ADMIN'] },
   { href: '/admin', label: 'navAdmin', icon: Users, roles: ['ADMIN'] },
   { href: '/reports', label: 'navReports', icon: BarChart3, roles: ['WAREHOUSE_KEEPER', 'DEPT_MANAGER'] },
   { href: '/about', label: 'navAbout', icon: Info },

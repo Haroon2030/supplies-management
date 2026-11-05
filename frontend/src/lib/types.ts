@@ -12,6 +12,7 @@ export interface Profile {
 
 export interface Item {
   id: string; sku: string; name: string; unit: string; minStock: number; active: boolean;
+  description?: string | null; barcode?: string | null;
   category: { id: string; name: string };
 }
 

@@ -26,8 +26,17 @@ export class UpdateUserDto {
   @IsOptional() @IsString() branchId?: string;
   @IsOptional() @IsBoolean() active?: boolean;
 }
+export class UpdateBranchDto {
+  @IsOptional() @IsString() @MinLength(2) name?: string;
+  @IsOptional() @IsString() code?: string;
+  @IsOptional() @IsString() city?: string;
+}
+export class UpdateDepartmentDto {
+  @IsString() @MinLength(2) name!: string;
+}
 export class CreateBranchDto {
   @IsString() @MinLength(2) name!: string;
+  @IsOptional() @IsString() code?: string;
   @IsOptional() @IsString() city?: string;
 }
 export class CreateDepartmentDto {
@@ -94,9 +103,34 @@ export class AdminService {
     });
   }
 
+  private async assertBranchFree(name?: string, code?: string | null, exceptId?: string) {
+    if (name) {
+      const d = await this.prisma.branch.findUnique({ where: { name } });
+      if (d && d.id !== exceptId) throw new ConflictException('اسم الفرع مستخدم');
+    }
+    if (code) {
+      const d = await this.prisma.branch.findUnique({ where: { code } });
+      if (d && d.id !== exceptId) throw new ConflictException('رقم الفرع مستخدم');
+    }
+  }
+
   async createBranch(dto: CreateBranchDto) {
-    if (await this.prisma.branch.findUnique({ where: { name: dto.name } })) throw new ConflictException('اسم الفرع مستخدم');
-    return this.prisma.branch.create({ data: dto });
+    const code = dto.code?.trim() || null;
+    await this.assertBranchFree(dto.name, code);
+    return this.prisma.branch.create({ data: { name: dto.name, city: dto.city || null, code } });
+  }
+
+  async updateBranch(id: string, dto: UpdateBranchDto) {
+    const code = dto.code === undefined ? undefined : dto.code.trim() || null;
+    await this.assertBranchFree(dto.name, code, id);
+    return this.prisma.branch.update({ where: { id }, data: { name: dto.name, city: dto.city, code } });
+  }
+
+  async updateDepartment(id: string, dto: UpdateDepartmentDto) {
+    const cur = await this.prisma.department.findUniqueOrThrow({ where: { id } });
+    const dup = await this.prisma.department.findUnique({ where: { branchId_name: { branchId: cur.branchId, name: dto.name } } });
+    if (dup && dup.id !== id) throw new ConflictException('الإدارة موجودة في هذا الفرع');
+    return this.prisma.department.update({ where: { id }, data: { name: dto.name } });
   }
 
   async createDepartment(dto: CreateDepartmentDto) {
@@ -119,6 +153,8 @@ export class AdminController {
     return this.svc.updateUser(u, id, dto);
   }
   @Post('branches') createBranch(@Body() dto: CreateBranchDto) { return this.svc.createBranch(dto); }
+  @Patch('branches/:id') updateBranch(@Param('id') id: string, @Body() dto: UpdateBranchDto) { return this.svc.updateBranch(id, dto); }
+  @Patch('departments/:id') updateDepartment(@Param('id') id: string, @Body() dto: UpdateDepartmentDto) { return this.svc.updateDepartment(id, dto); }
   @Post('departments') createDepartment(@Body() dto: CreateDepartmentDto) { return this.svc.createDepartment(dto); }
 }
 

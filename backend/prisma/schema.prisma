@@ -36,6 +36,7 @@ enum PurchaseRequestStatus {
 model Branch {
   id          String       @id @default(cuid())
   name        String       @unique
+  code        String?      @unique // رقم الفرع
   city        String?
   departments Department[]
   users       User[]
@@ -84,6 +85,8 @@ model Item {
   id         String   @id @default(cuid())
   sku        String   @unique
   name       String
+  description String?  @db.Text
+  barcode    String?  @unique
   unit       String   @default("قطعة")
   minStock   Int      @default(0) // الحد الأدنى: عند الوصول إليه يُنشأ طلب شراء تلقائي
   reorderQty Int      @default(0) // كمية إعادة الطلب (0 = تلقائي: ضعف الحد الأدنى − الرصيد)

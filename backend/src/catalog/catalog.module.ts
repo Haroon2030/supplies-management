@@ -11,6 +11,8 @@ export class CreateItemDto {
   @IsString() @MinLength(2) sku!: string;
   @IsString() @MinLength(2) name!: string;
   @IsString() categoryId!: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() barcode?: string;
   @IsOptional() @IsString() unit?: string;
   @IsOptional() @IsInt() @Min(0) minStock?: number;
   @IsOptional() @IsInt() @Min(0) reorderQty?: number;
@@ -18,6 +20,8 @@ export class CreateItemDto {
 export class UpdateItemDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() categoryId?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() barcode?: string;
   @IsOptional() @IsString() unit?: string;
   @IsOptional() @IsInt() @Min(0) minStock?: number;
   @IsOptional() @IsInt() @Min(0) reorderQty?: number;
@@ -48,15 +52,29 @@ export class CatalogService {
   items() {
     return this.prisma.item.findMany({ orderBy: { name: 'asc' }, include: { category: true } });
   }
+  /** الباركود الفارغ = بلا قيمة (حتى لا يتعارض الفهرس الفريد). */
+  private async assertBarcodeFree(barcode: string | null | undefined, exceptId?: string) {
+    if (!barcode) return;
+    const dup = await this.prisma.item.findUnique({ where: { barcode } });
+    if (dup && dup.id !== exceptId) throw new ConflictException('الباركود مستخدم لصنف آخر');
+  }
   async createItem(dto: CreateItemDto) {
     const exists = await this.prisma.item.findUnique({ where: { sku: dto.sku } });
-    if (exists) throw new ConflictException('رمز الصنف مستخدم مسبقاً');
-    const item = await this.prisma.item.create({ data: dto, include: { category: true } });
+    if (exists) throw new ConflictException('رقم الصنف مستخدم مسبقاً');
+    const data = { ...dto, description: dto.description?.trim() || null, barcode: dto.barcode?.trim() || null };
+    await this.assertBarcodeFree(data.barcode);
+    const item = await this.prisma.item.create({ data, include: { category: true } });
     await this.replenishment.safeSync(); // صنف جديد برصيد صفر وحد أدنى > 0 يحتاج طلب شراء
     return item;
   }
   async updateItem(id: string, dto: UpdateItemDto) {
-    const item = await this.prisma.item.update({ where: { id }, data: dto, include: { category: true } });
+    const data = {
+      ...dto,
+      description: dto.description === undefined ? undefined : dto.description.trim() || null,
+      barcode: dto.barcode === undefined ? undefined : dto.barcode.trim() || null,
+    };
+    await this.assertBarcodeFree(data.barcode, id);
+    const item = await this.prisma.item.update({ where: { id }, data, include: { category: true } });
     await this.replenishment.safeSync(); // تغيير الحد الأدنى قد يجعل الصنف تحته فوراً
     return item;
   }
