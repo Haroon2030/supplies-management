@@ -40,3 +40,16 @@ npm install && npm run dev
 
 ## الاختبارات
 `cd backend && npm test` (خوارزمية FIFO). مسارات الصرف والعجز والفواتير والتقارير جُرّبت على قاعدة فعلية عبر الـ API.
+
+## النشر على Dokploy (Dockerfile)
+
+تطبيقان من نفس المستودع، لكلٍّ **Build Type = Dockerfile**:
+
+| التطبيق | Build Path | Dockerfile | المنفذ | المتغيرات |
+|---|---|---|---|---|
+| API | `backend` | `Dockerfile` | 4000 | `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT`, `CORS_ORIGIN` |
+| الواجهة | `frontend` | `Dockerfile` | 3000 | `NEXT_PUBLIC_API_URL` (اختياري، الافتراضي `/api`), `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_COMPANY_VAT` |
+
+- الـ API يطبّق ترحيلات القاعدة تلقائياً عند كل إقلاع (`prisma migrate deploy`).
+- لخدمة الاثنين من عنوان واحد: الواجهة على المسار `/` والـ API على المسار `/api` (الخادم يعمل تحت البادئة `/api` أصلاً).
+- متغيرات `NEXT_PUBLIC_*` تُدمج وقت البناء؛ غيّرها ثم أعد البناء (Rebuild).

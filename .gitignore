@@ -8,3 +8,4 @@ dist
 backend/prisma/*.db
 backend/prisma/*.db-journal
 *.log
+deploy/
