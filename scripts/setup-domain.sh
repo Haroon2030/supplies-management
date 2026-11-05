@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # يُشغَّل على السيرفر (كـ root): يربط دومين بالتطبيقين عبر nginx الموجود ويفعّل HTTPS.
 # الاستخدام:  bash setup-domain.sh supplies-mangmant.example.com [you@example.com]
-# المتطلبات: سجل A للدومين يشير لهذا السيرفر، ومنفذا Dokploy المنشوران 7095 (الواجهة) و7096 (الـ API).
+# المتطلبات: سجل A للدومين يشير لهذا السيرفر، ومنفذا Dokploy المنشوران 7095 (الواجهة) و7098 (الـ API).
 set -euo pipefail
 
 HOST="${1:?الاستخدام: bash setup-domain.sh supplies-mangmant.example.com [email]}"
 EMAIL="${2:-}"
 WEB_PORT=7095
-API_PORT=7096
+API_PORT=7098
 CONF="/etc/nginx/sites-available/${HOST}"
 
 # 1) تأكد أن الدومين يشير لهذا السيرفر قبل طلب الشهادة
