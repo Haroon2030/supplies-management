@@ -9,15 +9,19 @@ import type { Item } from '@/lib/types';
 import { Button, Card, CardHeader, Field, Spinner } from './ui';
 
 export interface FormLine { itemId: string; quantity: number }
-export interface FormValue { justification: string; lines: FormLine[] }
+export interface FormValue { justification: string; lines: FormLine[]; departmentId?: string; branchId?: string }
 
-/** نموذج مشترك لإنشاء الطلب وتعديله بعد إعادته من المدير. */
+/** نموذج مشترك لإنشاء الطلب وتعديله بعد إعادته من المدير. `withPlacement`: اختيار الإدارة والفرع (للمدير العام وأمين المستودع). */
 export function RequestForm({
-  initial, submitLabel, busy, onSubmit,
+  initial, submitLabel, busy, onSubmit, withPlacement,
 }: {
-  initial?: FormValue; submitLabel: string; busy?: boolean; onSubmit: (v: FormValue) => void;
+  initial?: FormValue; submitLabel: string; busy?: boolean; onSubmit: (v: FormValue) => void; withPlacement?: boolean;
 }) {
   const { t } = useI18n();
+  const depts = useQuery({ queryKey: ['departments'], queryFn: () => api<{ id: string; name: string }[]>('/departments'), enabled: !!withPlacement });
+  const branches = useQuery({ queryKey: ['branches'], queryFn: () => api<{ id: string; name: string }[]>('/branches'), enabled: !!withPlacement });
+  const [departmentId, setDepartmentId] = useState('');
+  const [branchId, setBranchId] = useState('');
   const items = useQuery({ queryKey: ['items'], queryFn: () => api<Item[]>('/items'), staleTime: 5 * 60_000 });
   const [justification, setJustification] = useState(initial?.justification ?? '');
   const [lines, setLines] = useState<FormLine[]>(initial?.lines.length ? initial.lines : [{ itemId: '', quantity: 1 }]);
@@ -32,15 +36,30 @@ export function RequestForm({
 
   const patch = (idx: number, p: Partial<FormLine>) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...p } : l)));
   const chosen = new Set(lines.map((l) => l.itemId));
-  const valid = lines.length > 0 && lines.every((l) => l.itemId && l.quantity >= 1 && Number.isInteger(l.quantity));
+  const valid = lines.length > 0 && lines.every((l) => l.itemId && l.quantity >= 1 && Number.isInteger(l.quantity))
+    && (!withPlacement || (!!departmentId && !!branchId));
 
   if (items.isLoading) return <Spinner />;
 
   return (
     <form
       className="space-y-6"
-      onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ justification: justification.trim(), lines }); }}
+      onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ justification: justification.trim(), lines, ...(withPlacement ? { departmentId, branchId } : {}) }); }}
     >
+      {withPlacement && (
+        <Card className="grid gap-3 p-5 sm:grid-cols-2">
+          <Field label={t('branch')}>
+            <select className="field" required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              <option value="">—</option>{branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </Field>
+          <Field label={t('department')}>
+            <select className="field" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              <option value="">—</option>{depts.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </Field>
+        </Card>
+      )}
       <Card>
         <CardHeader title={t('item')} />
         <div className="space-y-3 p-5">

@@ -59,7 +59,7 @@ function RequestsInner() {
     <>
       <PageHeader
         title={title}
-        actions={user && user.role !== 'WAREHOUSE_KEEPER' && user.role !== 'ADMIN' && (
+        actions={user && (
           <Button asChild><Link href="/requests/new">{t('newRequest')}</Link></Button>
         )}
       />

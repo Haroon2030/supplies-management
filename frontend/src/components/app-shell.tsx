@@ -23,7 +23,7 @@ const NAV: NavItem[] = [
   { href: '/requests', label: 'navApprovals', icon: ClipboardList, roles: ['DEPT_MANAGER'], badge: 'manager' },
   { href: '/requests', label: 'navWarehouseQueue', icon: PackageCheck, roles: ['WAREHOUSE_KEEPER'], badge: 'warehouse' },
   { href: '/requests', label: 'navRequests', icon: ClipboardList, roles: ['ADMIN'] },
-  { href: '/requests/new', label: 'navNewRequest', icon: PlusCircle, roles: ['EMPLOYEE', 'DEPT_MANAGER'] },
+  { href: '/requests/new', label: 'navNewRequest', icon: PlusCircle },
   { href: '/inventory', label: 'navInventory', icon: Boxes, roles: ['WAREHOUSE_KEEPER'] },
   { href: '/invoices', label: 'navInvoices', icon: Receipt, roles: ['WAREHOUSE_KEEPER'] },
   { href: '/purchase-requests', label: 'navPurchase', icon: ShoppingCart, roles: ['WAREHOUSE_KEEPER'] },

@@ -16,7 +16,7 @@ export default function NewRequestPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const create = useMutation({
-    mutationFn: (v: { justification: string; lines: { itemId: string; quantity: number }[] }) =>
+    mutationFn: (v: { justification: string; lines: { itemId: string; quantity: number }[]; departmentId?: string; branchId?: string }) =>
       api<RequestDetail>('/requests', { method: 'POST', json: { ...v, justification: v.justification || undefined } }),
     onSuccess: (r) => {
       toast.success(t('requestSent'));
@@ -30,7 +30,7 @@ export default function NewRequestPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title={t('newRequest')} subtitle={user?.role === 'DEPT_MANAGER' ? t('autoApproved') : user?.department ? `${user.department.name} · ${user.branch?.name ?? ''}` : undefined} />
-      <RequestForm submitLabel={t('submitRequest')} busy={create.isPending} onSubmit={(v) => create.mutate(v)} />
+      <RequestForm withPlacement={user?.role === 'ADMIN' || user?.role === 'WAREHOUSE_KEEPER'} submitLabel={t('submitRequest')} busy={create.isPending} onSubmit={(v) => create.mutate(v)} />
     </div>
   );
 }

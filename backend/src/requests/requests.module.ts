@@ -22,6 +22,9 @@ export class RequestLineDto {
 }
 export class SaveRequestDto {
   @IsOptional() @IsString() justification?: string;
+  /** للمدير العام وأمين المستودع فقط (حسابهما بلا إدارة/فرع)؛ غيرهما يُستخدم مكانهما المسجّل. */
+  @IsOptional() @IsString() departmentId?: string;
+  @IsOptional() @IsString() branchId?: string;
   @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => RequestLineDto)
   lines!: RequestLineDto[];
 }
@@ -62,7 +65,7 @@ export class RequestsService {
     switch (user.role) {
       case Role.ADMIN: return {};
       case Role.WAREHOUSE_KEEPER:
-        return { status: { in: ['PENDING_WAREHOUSE', 'AWAITING_PURCHASE', 'PARTIALLY_ISSUED', 'ISSUED'] } };
+        return { OR: [{ status: { in: ['PENDING_WAREHOUSE', 'AWAITING_PURCHASE', 'PARTIALLY_ISSUED', 'ISSUED'] } }, { requesterId: user.id }] };
       case Role.DEPT_MANAGER:
         return { OR: [{ departmentId: user.departmentId ?? '__none__' }, { requesterId: user.id }] };
       default: return { requesterId: user.id };
@@ -100,13 +103,22 @@ export class RequestsService {
   }
 
   async create(user: AuthUser, dto: SaveRequestDto) {
-    if (!user.departmentId || !user.branchId) {
-      throw new ForbiddenException('حسابك غير مرتبط بإدارة وفرع');
+    const privileged = user.role === Role.ADMIN || user.role === Role.WAREHOUSE_KEEPER;
+    const departmentId = privileged ? dto.departmentId ?? user.departmentId : user.departmentId;
+    const branchId = privileged ? dto.branchId ?? user.branchId : user.branchId;
+    if (!departmentId || !branchId) {
+      throw new ForbiddenException(privileged ? 'اختر الإدارة والفرع' : 'حسابك غير مرتبط بإدارة وفرع');
+    }
+    if (privileged) {
+      const [d, b] = await Promise.all([
+        this.prisma.department.count({ where: { id: departmentId } }),
+        this.prisma.branch.count({ where: { id: branchId } }),
+      ]);
+      if (!d || !b) throw new BadRequestException('الإدارة أو الفرع غير موجود');
     }
     await this.assertItemsActive(dto.lines);
     // طلب مدير الإدارة نفسه يُعتمد تلقائياً ويذهب للمستودع.
     const auto = user.role === Role.DEPT_MANAGER;
-    const { departmentId, branchId } = user; // مُضيَّقة أعلاه (غير null)
     return this.prisma.$transaction(async (tx) => tx.request.create({
       data: {
         number: await nextNumber(tx, 'request'),
