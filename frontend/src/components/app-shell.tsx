@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import {
-  BarChart3, Bell, Boxes, ClipboardList, Languages, LayoutDashboard, LogOut, Menu, PackageCheck, PlusCircle, Receipt, ShoppingCart, Users, X,
+  BarChart3, Bell, Boxes, Info, ClipboardList, Languages, LayoutDashboard, LogOut, Menu, PackageCheck, PlusCircle, Receipt, ShoppingCart, Users, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
   { href: '/purchase-requests', label: 'navPurchase', icon: ShoppingCart, roles: ['WAREHOUSE_KEEPER'] },
   { href: '/admin', label: 'navAdmin', icon: Users, roles: ['ADMIN'] },
   { href: '/reports', label: 'navReports', icon: BarChart3, roles: ['WAREHOUSE_KEEPER', 'DEPT_MANAGER'] },
+  { href: '/about', label: 'navAbout', icon: Info },
 ];
 
 /** المرحلة التي تنتظر إجراء من كل دور (تغذي الجرس). */

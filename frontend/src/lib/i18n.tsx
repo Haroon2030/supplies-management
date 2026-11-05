@@ -74,6 +74,7 @@ const dict = {
     reorderQty: 'كمية إعادة الطلب', minStockHint: 'عند بلوغ هذا الرصيد أو النزول عنه يُنشأ طلب شراء تلقائي', reorderQtyHint: '0 = تلقائي (ضعف الحد الأدنى ناقص الرصيد)',
     editItem: 'تعديل الصنف', autoReorder: 'تلقائي: بلغ الحد الأدنى', shortageKind: 'عجز في طلب', itemSaved: 'تم حفظ الصنف',
     pagination: 'الترقيم', ofCount: 'من', prevPage: 'الصفحة السابقة', nextPage: 'الصفحة التالية', pageWord: 'الصفحة',
+    navAbout: 'من نحن', supportLine: 'للدعم والاستفسار',
     lang: 'English',
   },
   en: {
@@ -136,6 +137,7 @@ const dict = {
     reorderQty: 'Reorder quantity', minStockHint: 'A purchase request is created automatically when stock reaches or drops below this level', reorderQtyHint: '0 = automatic (double the minimum minus on hand)',
     editItem: 'Edit item', autoReorder: 'Auto: reached minimum stock', shortageKind: 'Request shortage', itemSaved: 'Item saved',
     pagination: 'Pagination', ofCount: 'of', prevPage: 'Previous page', nextPage: 'Next page', pageWord: 'Page',
+    navAbout: 'About us', supportLine: 'Support and enquiries',
     lang: 'العربية',
   },
 } as const;
