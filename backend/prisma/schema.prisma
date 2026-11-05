@@ -1,0 +1,250 @@
+// Centralized Procurement & Inventory — data model (SQLite محلي)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  DEPT_MANAGER
+  WAREHOUSE_KEEPER
+  ADMIN
+}
+
+enum RequestStatus {
+  PENDING_MANAGER   // بانتظار مدير الإدارة
+  NEEDS_EDIT        // أعيد للموظف للتعديل
+  REJECTED          // رُفض من المدير
+  PENDING_WAREHOUSE // معتمد، بانتظار أمين المستودع
+  AWAITING_PURCHASE // لا يتوفر مخزون، حُوّل لطلب شراء
+  PARTIALLY_ISSUED  // صُرف جزء والباقي في طلب شراء
+  ISSUED            // صُرف بالكامل
+  CANCELLED         // ألغاه صاحبه
+}
+
+enum PurchaseRequestStatus {
+  OPEN
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+model Branch {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  city        String?
+  departments Department[]
+  users       User[]
+  requests    Request[]
+  invoices    PurchaseInvoice[]
+}
+
+model Department {
+  id        String    @id @default(cuid())
+  name      String
+  branchId  String
+  branch    Branch    @relation(fields: [branchId], references: [id])
+  users     User[]
+  requests  Request[]
+
+  @@unique([branchId, name])
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  username     String?     @unique // رقم المستخدم للدخول (إلزامي من الواجهة)
+  fullName     String
+  passwordHash String
+  role         Role
+  active       Boolean     @default(true)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  branchId     String?
+  branch       Branch?     @relation(fields: [branchId], references: [id])
+  createdAt    DateTime    @default(now())
+
+  requests     Request[]          @relation("Requester")
+  actions      RequestEvent[]
+  invoices     PurchaseInvoice[]
+  issues       StockIssue[]
+}
+
+model Category {
+  id    String @id @default(cuid())
+  name  String @unique
+  items Item[]
+}
+
+model Item {
+  id         String   @id @default(cuid())
+  sku        String   @unique
+  name       String
+  unit       String   @default("قطعة")
+  minStock   Int      @default(0) // الحد الأدنى: عند الوصول إليه يُنشأ طلب شراء تلقائي
+  reorderQty Int      @default(0) // كمية إعادة الطلب (0 = تلقائي: ضعف الحد الأدنى − الرصيد)
+  active     Boolean  @default(true)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  batches         StockBatch[]
+  requestLines    RequestLine[]
+  invoiceLines    InvoiceLine[]
+  purchaseLines   PurchaseRequestLine[]
+
+  @@index([categoryId])
+}
+
+model Supplier {
+  id       String            @id @default(cuid())
+  name     String            @unique
+  phone    String?
+  vatNumber String?           // الرقم الضريبي للمورد (15 رقماً) — يظهر في الفاتورة ورمز QR
+  invoices PurchaseInvoice[]
+}
+
+model PurchaseInvoice {
+  id            String        @id @default(cuid())
+  number        String
+  supplierId    String
+  supplier      Supplier      @relation(fields: [supplierId], references: [id])
+  branchId      String
+  branch        Branch        @relation(fields: [branchId], references: [id])
+  invoiceDate   DateTime
+  subtotal      Decimal       @default(0) // قبل الضريبة
+  vatRate       Float         @default(15) // نسبة ضريبة القيمة المضافة %
+  total         Decimal       // شامل الضريبة
+  notes         String?
+  createdById   String
+  createdBy     User          @relation(fields: [createdById], references: [id])
+  createdAt     DateTime      @default(now())
+  purchaseRequestId String?
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id])
+  lines         InvoiceLine[]
+
+  @@unique([supplierId, number])
+  @@index([branchId, invoiceDate])
+}
+
+model InvoiceLine {
+  id        String          @id @default(cuid())
+  invoiceId String
+  invoice   PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item            @relation(fields: [itemId], references: [id])
+  quantity  Int
+  unitCost  Decimal        
+  batch     StockBatch?
+}
+
+/// دفعة مخزون: كل سطر فاتورة ينشئ دفعة. الصرف FIFO بحسب receivedAt ثم id.
+model StockBatch {
+  id          String      @id @default(cuid())
+  itemId      String
+  item        Item        @relation(fields: [itemId], references: [id])
+  invoiceLineId String    @unique
+  invoiceLine InvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
+  qtyReceived Int
+  qtyRemaining Int
+  unitCost    Decimal    
+  receivedAt  DateTime
+  allocations IssueAllocation[]
+
+  @@index([itemId, receivedAt])
+}
+
+model Request {
+  id           String        @id @default(cuid())
+  number       Int           @unique // يُخصَّص في الخدمة (SQLite لا يدعم autoincrement خارج المفتاح)
+  requesterId  String
+  requester    User          @relation("Requester", fields: [requesterId], references: [id])
+  departmentId String
+  department   Department    @relation(fields: [departmentId], references: [id])
+  branchId     String
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  status       RequestStatus @default(PENDING_MANAGER)
+  justification String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  lines        RequestLine[]
+  events       RequestEvent[]
+  issues       StockIssue[]
+  purchaseRequests PurchaseRequest[]
+
+  @@index([status])
+  @@index([departmentId, status])
+  @@index([requesterId])
+}
+
+model RequestLine {
+  id          String  @id @default(cuid())
+  requestId   String
+  request     Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item    @relation(fields: [itemId], references: [id])
+  quantity    Int     // المطلوب
+  approvedQty Int?    // ما اعتمده المدير
+  issuedQty   Int     @default(0)
+}
+
+model RequestEvent {
+  id        String        @id @default(cuid())
+  requestId String
+  request   Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actorId   String
+  actor     User          @relation(fields: [actorId], references: [id])
+  action    String        // SUBMITTED | APPROVED | REJECTED | RETURNED | RESUBMITTED | ISSUED | CANCELLED
+  note      String?
+  createdAt DateTime      @default(now())
+
+  @@index([requestId, createdAt])
+}
+
+model StockIssue {
+  id          String   @id @default(cuid())
+  requestId   String
+  request     Request  @relation(fields: [requestId], references: [id])
+  issuedById  String
+  issuedBy    User     @relation(fields: [issuedById], references: [id])
+  issuedAt    DateTime @default(now())
+  allocations IssueAllocation[]
+}
+
+model IssueAllocation {
+  id        String     @id @default(cuid())
+  issueId   String
+  issue     StockIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  batchId   String
+  batch     StockBatch @relation(fields: [batchId], references: [id])
+  itemId    String
+  quantity  Int
+  unitCost  Decimal   
+}
+
+model PurchaseRequest {
+  id        String                @id @default(cuid())
+  number    Int                   @unique
+  requestId String?                // فارغ في طلب الشراء التلقائي عند بلوغ الحد الأدنى
+  request   Request?              @relation(fields: [requestId], references: [id])
+  kind      String                @default("SHORTAGE") // SHORTAGE: عجز طلب · REORDER: حد أدنى
+  status    PurchaseRequestStatus @default(OPEN)
+  createdAt DateTime              @default(now())
+  lines     PurchaseRequestLine[]
+  invoices  PurchaseInvoice[]
+
+  @@index([status])
+}
+
+model PurchaseRequestLine {
+  id                String          @id @default(cuid())
+  purchaseRequestId String
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  itemId            String
+  item              Item            @relation(fields: [itemId], references: [id])
+  quantity          Int
+}

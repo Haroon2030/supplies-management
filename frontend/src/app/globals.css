@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+/*
+  Liquid Glass (Apple HIG) على أرضية داكنة:
+  - طبقة المحتوى: خلفية سوداء مع هالات لونية ضبابية
+  - طبقة الوظائف (الشريط العلوي، الشريط الجانبي، البطاقات): زجاج يعكس ما تحته
+  - لون واحد للتفاعل (الأزرق)، وألوان النظام للحالات فقط
+*/
+@theme {
+  /* على أجهزة Apple يُستخدم SF (بما فيه SF Arabic)، وغيرها يرجع إلى IBM Plex Sans Arabic */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-plex), "Helvetica Neue", Arial, sans-serif;
+
+  --color-bg: #000000;
+  --color-bg-2: #1c1c1e;
+  --color-fg: #f5f5f7;
+  --color-muted: rgb(235 235 245 / 0.6);
+  --color-line: rgb(255 255 255 / 0.1);
+
+  --color-accent: #0a84ff;
+  --color-accent-soft: #6cb6ff;
+  --color-ok: #30d158;
+  --color-bad: #ff453a;
+  --color-info: #64d2ff;
+  --color-plum: #bf5af2;
+  --color-warn: #ff9f0a;
+
+  --ease-apple: cubic-bezier(0.28, 0.11, 0.32, 1);
+}
+
+:root {
+  color-scheme: dark;
+  --glass: rgb(44 44 46 / 0.5);
+  --glass-strong: rgb(58 58 60 / 0.55);
+  --rim: rgb(255 255 255 / 0.14);
+}
+
+html, body { min-height: 100%; }
+
+body {
+  background-color: #000;
+  background-image:
+    radial-gradient(700px 520px at 12% 8%, rgb(10 132 255 / 0.28), transparent 62%),
+    radial-gradient(640px 520px at 92% 18%, rgb(94 92 230 / 0.22), transparent 60%),
+    radial-gradient(760px 600px at 70% 100%, rgb(100 210 255 / 0.16), transparent 60%),
+    radial-gradient(520px 420px at 0% 95%, rgb(191 90 242 / 0.14), transparent 60%);
+  background-attachment: fixed;
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.003em;
+}
+
+/* الزجاج: انكسار + حافة لامعة علوية + إطار رفيع */
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 10px 30px -12px rgb(0 0 0 / 0.55),
+    inset 0 1px 0 rgb(255 255 255 / 0.16),
+    inset 0 0 0 0.5px var(--rim);
+}
+.glass-strong { background: var(--glass-strong); }
+
+/* شريط التمرير */
+* { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.2) transparent; }
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* ضغط الأزرار: خفوت وتصغير لا تموّج */
+button:active:not(:disabled), a[class*="rounded-full"]:active { transform: scale(0.97); }
+button, a { transition: background-color 0.25s var(--ease-apple), color 0.25s var(--ease-apple), transform 0.2s var(--ease-apple), box-shadow 0.25s var(--ease-apple); }
+
+/* وهج العنصر النشط في القائمة */
+.nav-active {
+  background: linear-gradient(135deg, rgb(10 132 255 / 0.95), rgb(64 156 255 / 0.75));
+  color: #fff;
+  box-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.3) inset, 0 8px 28px -6px rgb(10 132 255 / 0.65);
+}
+
+/* حلقة التقدم تُرسم عند الدخول مرة واحدة */
+@keyframes grow-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+.grow-in { animation: grow-in 600ms var(--ease-apple) both; }
+
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+.pulse-dot { animation: pulse-dot 1.8s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .grow-in, .pulse-dot { animation: none; }
+  * { transition-duration: 0.01ms !important; }
+}
+
+/* الطباعة: تُطبع ورقة الفاتورة وحدها (يُضاف الصنف printing-invoice على html قبل الطباعة) */
+@media print {
+  html.printing-invoice body { background: #fff !important; }
+  html.printing-invoice .app-chrome { display: none !important; }
+  html.printing-invoice body * { visibility: hidden !important; }
+  html.printing-invoice .print-area, html.printing-invoice .print-area * { visibility: visible !important; }
+  html.printing-invoice .print-dialog {
+    position: absolute !important; left: 0 !important; top: 0 !important; transform: none !important;
+    width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important;
+    background: #fff !important; box-shadow: none !important; backdrop-filter: none !important; padding: 0 !important; border-radius: 0 !important;
+  }
+  html.printing-invoice .no-print { display: none !important; }
+  @page { size: A4; margin: 12mm; }
+}
+
+/* حقول الإدخال بأسلوب iOS: تعبئة رمادية شفافة بلا إطار */
+.field {
+  width: 100%;
+  min-height: 44px;
+  background: rgb(120 120 128 / 0.24);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 0.6rem 0.9rem;
+  color: var(--color-fg);
+  transition: border-color 0.2s var(--ease-apple), background 0.2s var(--ease-apple), box-shadow 0.2s var(--ease-apple);
+}
+.field::placeholder { color: rgb(235 235 245 / 0.3); }
+.field:hover { background: rgb(120 120 128 / 0.32); }
+.field:focus-visible { outline: none; border-color: var(--color-accent); box-shadow: 0 0 0 4px rgb(10 132 255 / 0.25); }
+select.field option { background: #1c1c1e; color: var(--color-fg); }
