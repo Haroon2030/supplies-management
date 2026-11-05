@@ -126,6 +126,7 @@ export class ReportsService {
     const scope: Prisma.RequestWhereInput =
       user.role === Role.EMPLOYEE ? { requesterId: user.id }
       : user.role === Role.DEPT_MANAGER ? { departmentId: user.departmentId ?? '__none__' }
+      : user.role === Role.BRANCH_MANAGER ? { branchId: user.branchId ?? '__none__' }
       : {};
 
     const byStatus = await this.prisma.request.groupBy({ by: ['status'], where: scope, _count: true });

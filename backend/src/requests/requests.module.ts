@@ -71,6 +71,8 @@ export class RequestsService {
         return { OR: [{ status: { in: ['PENDING_WAREHOUSE', 'AWAITING_PURCHASE', 'PARTIALLY_ISSUED', 'ISSUED'] } }, { requesterId: user.id }] };
       case Role.DEPT_MANAGER:
         return { OR: [{ departmentId: user.departmentId ?? '__none__' }, { requesterId: user.id }] };
+      case Role.BRANCH_MANAGER:
+        return { OR: [{ branchId: user.branchId ?? '__none__' }, { requesterId: user.id }] };
       default: return { requesterId: user.id };
     }
   }
@@ -106,23 +108,19 @@ export class RequestsService {
   }
 
   async create(user: AuthUser, dto: SaveRequestDto) {
-    const privileged = user.role === Role.ADMIN || user.role === Role.WAREHOUSE_KEEPER;
-    const departmentId = privileged ? dto.departmentId ?? user.departmentId : user.departmentId;
-    const branchId = privileged ? dto.branchId ?? user.branchId : user.branchId;
-    if (!departmentId || !branchId) {
-      throw new ForbiddenException(privileged ? 'اختر الإدارة والفرع' : 'حسابك غير مرتبط بإدارة وفرع');
-    }
-    if (privileged) {
-      const [d, b] = await Promise.all([
-        this.prisma.department.count({ where: { id: departmentId } }),
-        this.prisma.branch.count({ where: { id: branchId } }),
-      ]);
-      if (!d || !b) throw new BadRequestException('الإدارة أو الفرع غير موجود');
-    }
+    // الرافع مربوط بفرع أو إدارة (أو الاثنين)؛ ما لا يملكه يختاره في النموذج، فيكتمل الاثنان دائماً
+    const departmentId = user.departmentId ?? dto.departmentId;
+    const branchId = user.branchId ?? dto.branchId;
+    if (!departmentId || !branchId) throw new BadRequestException('اختر الفرع والإدارة');
+    const [d, b] = await Promise.all([
+      this.prisma.department.count({ where: { id: departmentId } }),
+      this.prisma.branch.count({ where: { id: branchId } }),
+    ]);
+    if (!d || !b) throw new BadRequestException('الإدارة أو الفرع غير موجود');
     if (dto.sectionId && !(await this.prisma.section.count({ where: { id: dto.sectionId } }))) throw new BadRequestException('القسم غير موجود');
     await this.assertItemsActive(dto.lines);
     // طلب مدير الإدارة نفسه يُعتمد تلقائياً ويذهب للمستودع.
-    const auto = user.role === Role.DEPT_MANAGER;
+    const auto = user.role === Role.DEPT_MANAGER || user.role === Role.BRANCH_MANAGER;
     return this.prisma.$transaction(async (tx) => tx.request.create({
       data: {
         number: await nextNumber(tx, 'request'),
@@ -173,9 +171,10 @@ export class RequestsService {
   private async managerTarget(user: AuthUser, id: string) {
     const r = await this.prisma.request.findUnique({ where: { id }, include: { lines: true } });
     if (!r) throw new NotFoundException('الطلب غير موجود');
-    if (user.role !== Role.ADMIN && r.departmentId !== user.departmentId) {
-      throw new ForbiddenException('الطلب يتبع إدارة أخرى');
-    }
+    const inScope = user.role === Role.ADMIN
+      || (user.role === Role.DEPT_MANAGER && r.departmentId === user.departmentId)
+      || (user.role === Role.BRANCH_MANAGER && r.branchId === user.branchId);
+    if (!inScope) throw new ForbiddenException('الطلب خارج نطاق صلاحيتك');
     if (r.requesterId === user.id) throw new ForbiddenException('لا يمكنك اعتماد طلبك بنفسك');
     if (r.status !== 'PENDING_MANAGER') throw new ConflictException('الطلب ليس بانتظار قرار المدير');
     return r;
@@ -327,11 +326,11 @@ export class RequestsController {
   }
   @Post(':id/cancel') cancel(@CurrentUser() u: AuthUser, @Param('id') id: string) { return this.svc.cancel(u, id); }
 
-  @Post(':id/approve') @Roles(Role.DEPT_MANAGER)
+  @Post(':id/approve') @Roles(Role.DEPT_MANAGER, Role.BRANCH_MANAGER)
   approve(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: ApproveDto) { return this.svc.approve(u, id, dto); }
-  @Post(':id/reject') @Roles(Role.DEPT_MANAGER)
+  @Post(':id/reject') @Roles(Role.DEPT_MANAGER, Role.BRANCH_MANAGER)
   reject(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: NoteDto) { return this.svc.reject(u, id, dto); }
-  @Post(':id/return') @Roles(Role.DEPT_MANAGER)
+  @Post(':id/return') @Roles(Role.DEPT_MANAGER, Role.BRANCH_MANAGER)
   returnForEdit(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: NoteDto) { return this.svc.returnForEdit(u, id, dto); }
 
   @Post(':id/issue') @Roles(Role.WAREHOUSE_KEEPER)

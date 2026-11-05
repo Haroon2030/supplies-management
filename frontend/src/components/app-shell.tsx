@@ -20,7 +20,7 @@ interface NavItem { href: string; label: Key; icon: ComponentType<{ className?: 
 const NAV: NavItem[] = [
   { href: '/', label: 'navDashboard', icon: LayoutDashboard },
   { href: '/requests', label: 'navMyRequests', icon: ClipboardList, roles: ['EMPLOYEE'], badge: 'edit' },
-  { href: '/requests', label: 'navApprovals', icon: ClipboardList, roles: ['DEPT_MANAGER'], badge: 'manager' },
+  { href: '/requests', label: 'navApprovals', icon: ClipboardList, roles: ['DEPT_MANAGER', 'BRANCH_MANAGER'], badge: 'manager' },
   { href: '/requests', label: 'navWarehouseQueue', icon: PackageCheck, roles: ['WAREHOUSE_KEEPER'], badge: 'warehouse' },
   { href: '/requests', label: 'navRequests', icon: ClipboardList, roles: ['ADMIN'] },
   { href: '/requests/new', label: 'navNewRequest', icon: PlusCircle },
@@ -36,6 +36,7 @@ const NAV: NavItem[] = [
 const ACTION: Partial<Record<Role, { stage: string; key: 'pendingManager' | 'pendingWarehouse' | 'needsEdit' }>> = {
   EMPLOYEE: { stage: 'edit', key: 'needsEdit' },
   DEPT_MANAGER: { stage: 'manager', key: 'pendingManager' },
+  BRANCH_MANAGER: { stage: 'manager', key: 'pendingManager' },
   WAREHOUSE_KEEPER: { stage: 'warehouse', key: 'pendingWarehouse' },
 };
 

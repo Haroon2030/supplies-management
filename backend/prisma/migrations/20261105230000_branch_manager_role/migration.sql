@@ -1,0 +1,2 @@
+-- دور جديد: معتمد بمستوى الفرع
+ALTER TABLE `User` MODIFY `role` ENUM('EMPLOYEE', 'DEPT_MANAGER', 'BRANCH_MANAGER', 'WAREHOUSE_KEEPER', 'ADMIN') NOT NULL;

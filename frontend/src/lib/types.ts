@@ -1,4 +1,4 @@
-export type Role = 'EMPLOYEE' | 'DEPT_MANAGER' | 'WAREHOUSE_KEEPER' | 'ADMIN';
+export type Role = 'EMPLOYEE' | 'DEPT_MANAGER' | 'BRANCH_MANAGER' | 'WAREHOUSE_KEEPER' | 'ADMIN';
 
 export type RequestStatus =
   | 'PENDING_MANAGER' | 'NEEDS_EDIT' | 'REJECTED' | 'PENDING_WAREHOUSE'

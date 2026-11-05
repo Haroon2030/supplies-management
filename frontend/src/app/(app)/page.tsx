@@ -35,7 +35,7 @@ export default function DashboardPage() {
 
   const inProgress = p.pendingManager + p.pendingWarehouse + p.awaitingPurchase + p.needsEdit;
   const active = d.total - d.cancelled;
-  const attention = user.role === 'DEPT_MANAGER' ? { n: p.pendingManager, stage: 'manager' }
+  const attention = user.role === 'DEPT_MANAGER' || user.role === 'BRANCH_MANAGER' ? { n: p.pendingManager, stage: 'manager' }
     : user.role === 'WAREHOUSE_KEEPER' ? { n: p.pendingWarehouse, stage: 'warehouse' }
     : user.role === 'EMPLOYEE' ? { n: p.needsEdit, stage: 'edit' } : { n: p.awaitingPurchase, stage: 'purchase' };
   const pct = (n: number) => (active ? Math.round((n / active) * 100) : 0);

@@ -52,7 +52,7 @@ export default function RequestDetailPage() {
   if (!user) return null;
 
   const isOwner = r.requester.id === user.id;
-  const canDecide = r.status === 'PENDING_MANAGER' && !isOwner && (user.role === 'DEPT_MANAGER' || user.role === 'ADMIN');
+  const canDecide = r.status === 'PENDING_MANAGER' && !isOwner && (user.role === 'DEPT_MANAGER' || user.role === 'BRANCH_MANAGER' || user.role === 'ADMIN');
   const canIssue = ISSUABLE.includes(r.status) && (user.role === 'WAREHOUSE_KEEPER' || user.role === 'ADMIN');
   const canEdit = isOwner && r.status === 'NEEDS_EDIT';
   const canCancel = isOwner && (r.status === 'PENDING_MANAGER' || r.status === 'NEEDS_EDIT');

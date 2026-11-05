@@ -11,15 +11,15 @@ import { Button, Card, CardHeader, Field, Spinner } from './ui';
 export interface FormLine { itemId: string; quantity: number }
 export interface FormValue { justification: string; lines: FormLine[]; departmentId?: string; branchId?: string; sectionId?: string }
 
-/** نموذج مشترك لإنشاء الطلب وتعديله بعد إعادته من المدير. `withPlacement`: اختيار الإدارة والفرع (للمدير العام وأمين المستودع). */
+/** نموذج مشترك لإنشاء الطلب وتعديله بعد إعادته من المدير. `askBranch`/`askDepartment`: يطلب ما لم يُربط به حساب الرافع (يكفي ربطه بفرع أو إدارة). */
 export function RequestForm({
-  initial, submitLabel, busy, onSubmit, withPlacement,
+  initial, submitLabel, busy, onSubmit, askBranch, askDepartment,
 }: {
-  initial?: FormValue; submitLabel: string; busy?: boolean; onSubmit: (v: FormValue) => void; withPlacement?: boolean;
+  initial?: FormValue; submitLabel: string; busy?: boolean; onSubmit: (v: FormValue) => void; askBranch?: boolean; askDepartment?: boolean;
 }) {
   const { t } = useI18n();
-  const depts = useQuery({ queryKey: ['departments'], queryFn: () => api<{ id: string; name: string }[]>('/departments'), enabled: !!withPlacement });
-  const branches = useQuery({ queryKey: ['branches'], queryFn: () => api<{ id: string; name: string }[]>('/branches'), enabled: !!withPlacement });
+  const depts = useQuery({ queryKey: ['departments'], queryFn: () => api<{ id: string; name: string }[]>('/departments'), enabled: !!askDepartment });
+  const branches = useQuery({ queryKey: ['branches'], queryFn: () => api<{ id: string; name: string }[]>('/branches'), enabled: !!askBranch });
   const sections = useQuery({ queryKey: ['sections'], queryFn: () => api<{ id: string; name: string }[]>('/sections'), staleTime: 60_000 });
   const [sectionId, setSectionId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
@@ -39,33 +39,33 @@ export function RequestForm({
   const patch = (idx: number, p: Partial<FormLine>) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...p } : l)));
   const chosen = new Set(lines.map((l) => l.itemId));
   const valid = lines.length > 0 && lines.every((l) => l.itemId && l.quantity >= 1 && Number.isInteger(l.quantity))
-    && (!withPlacement || (!!departmentId && !!branchId));
+    && (!askDepartment || !!departmentId) && (!askBranch || !!branchId);
 
   if (items.isLoading) return <Spinner />;
 
   return (
     <form
       className="space-y-5"
-      onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ justification: justification.trim(), lines, ...(withPlacement ? { departmentId, branchId } : {}), ...(sectionId ? { sectionId } : {}) }); }}
+      onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ justification: justification.trim(), lines, ...(askDepartment ? { departmentId } : {}), ...(askBranch ? { branchId } : {}), ...(sectionId ? { sectionId } : {}) }); }}
     >
       {!initial && <Card>
         <CardHeader title={t('requestInfo')} hint={t('requestInfoHint')} />
         <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-          {withPlacement && (
-            <>
-              <Field label={t('branch')}>
-                <select className="field" required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                  <option value="">{t('chooseBranch')}</option>
-                  {branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name.trim()}</option>)}
-                </select>
-              </Field>
-              <Field label={t('department')}>
-                <select className="field" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-                  <option value="">{t('chooseDepartment')}</option>
-                  {depts.data?.map((d) => <option key={d.id} value={d.id}>{d.name.trim()}</option>)}
-                </select>
-              </Field>
-            </>
+          {askBranch && (
+            <Field label={t('branch')}>
+              <select className="field" required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                <option value="">{t('chooseBranch')}</option>
+                {branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name.trim()}</option>)}
+              </select>
+            </Field>
+          )}
+          {askDepartment && (
+            <Field label={t('department')}>
+              <select className="field" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                <option value="">{t('chooseDepartment')}</option>
+                {depts.data?.map((d) => <option key={d.id} value={d.id}>{d.name.trim()}</option>)}
+              </select>
+            </Field>
           )}
           <Field label={t('section')}>
             <select className="field" value={sectionId} onChange={(e) => setSectionId(e.target.value)}>

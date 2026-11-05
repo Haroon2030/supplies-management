@@ -29,8 +29,8 @@ export default function NewRequestPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title={t('newRequest')} subtitle={user?.role === 'DEPT_MANAGER' ? t('autoApproved') : user?.department ? `${user.department.name} · ${user.branch?.name ?? ''}` : undefined} />
-      <RequestForm withPlacement={user?.role === 'ADMIN' || user?.role === 'WAREHOUSE_KEEPER'} submitLabel={t('submitRequest')} busy={create.isPending} onSubmit={(v) => create.mutate(v)} />
+      <PageHeader title={t('newRequest')} subtitle={user?.role === 'DEPT_MANAGER' || user?.role === 'BRANCH_MANAGER' ? t('autoApproved') : user?.department ? `${user.department.name} · ${user.branch?.name ?? ''}` : undefined} />
+      <RequestForm askBranch={!user?.branch} askDepartment={!user?.department} submitLabel={t('submitRequest')} busy={create.isPending} onSubmit={(v) => create.mutate(v)} />
     </div>
   );
 }

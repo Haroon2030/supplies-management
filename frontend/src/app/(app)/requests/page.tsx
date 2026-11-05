@@ -52,7 +52,7 @@ function RequestsInner() {
     return m;
   }, [q.data]);
 
-  const title = user?.role === 'EMPLOYEE' ? t('navMyRequests') : user?.role === 'DEPT_MANAGER' ? t('navApprovals')
+  const title = user?.role === 'EMPLOYEE' ? t('navMyRequests') : user?.role === 'DEPT_MANAGER' || user?.role === 'BRANCH_MANAGER' ? t('navApprovals')
     : user?.role === 'WAREHOUSE_KEEPER' ? t('navWarehouseQueue') : t('navRequests');
 
   return (

@@ -59,13 +59,19 @@ export class AdminService {
     return this.prisma.user.findMany({ orderBy: [{ role: 'asc' }, { fullName: 'asc' }], select: USER_SELECT });
   }
 
-  /** الموظف والمدير يلزمهما إدارة وفرع (مستقلان عن بعضهما)، وأمين المستودع يلزمه فرع. */
+  /**
+   * قواعد الربط: رافع الطلب يلزمه فرع أو إدارة (أحدهما على الأقل)، ومدير الإدارة تلزمه إدارة،
+   * ومدير الفرع وأمين المستودع يلزمهما فرع، والسوبر أدمن بلا ربط.
+   */
   private async checkPlacement(role: Role, departmentId?: string | null, branchId?: string | null) {
     if (role === Role.ADMIN) return;
-    if (!branchId) throw new BadRequestException('اختر الفرع');
-    if (role === Role.WAREHOUSE_KEEPER) return;
-    if (!departmentId) throw new BadRequestException('اختر الإدارة');
-    if (!(await this.prisma.department.findUnique({ where: { id: departmentId } }))) throw new BadRequestException('الإدارة غير موجودة');
+    if ((role === Role.WAREHOUSE_KEEPER || role === Role.BRANCH_MANAGER) && !branchId) throw new BadRequestException('اختر الفرع');
+    if (role === Role.DEPT_MANAGER && !departmentId) throw new BadRequestException('اختر الإدارة');
+    if (role === Role.EMPLOYEE && !departmentId && !branchId) throw new BadRequestException('اختر الفرع أو الإدارة (أحدهما على الأقل)');
+    if (departmentId && (role === Role.EMPLOYEE || role === Role.DEPT_MANAGER)
+      && !(await this.prisma.department.findUnique({ where: { id: departmentId } }))) {
+      throw new BadRequestException('الإدارة غير موجودة');
+    }
   }
 
   async createUser(dto: CreateUserDto) {
@@ -76,8 +82,8 @@ export class AdminService {
     return this.prisma.user.create({
       data: {
         email, username: dto.username, fullName: dto.fullName, role: dto.role, passwordHash: await bcrypt.hash(dto.password, 10),
-        departmentId: dto.role === Role.EMPLOYEE || dto.role === Role.DEPT_MANAGER ? dto.departmentId : null,
-        branchId: dto.role === Role.ADMIN ? null : dto.branchId,
+        departmentId: dto.role === Role.EMPLOYEE || dto.role === Role.DEPT_MANAGER ? dto.departmentId || null : null,
+        branchId: dto.role === Role.ADMIN ? null : dto.branchId || null,
       },
       select: USER_SELECT,
     });
@@ -89,8 +95,9 @@ export class AdminService {
       throw new ForbiddenException('لا يمكنك إيقاف حسابك أو خفض صلاحيتك');
     }
     const role = dto.role ?? cur.role;
-    const branchId = dto.branchId ?? cur.branchId;
-    const departmentId = dto.departmentId ?? cur.departmentId;
+    // نص فارغ = إزالة الربط (مسموح للرافع بفرع فقط أو إدارة فقط)
+    const branchId = dto.branchId === undefined ? cur.branchId : dto.branchId || null;
+    const departmentId = dto.departmentId === undefined ? cur.departmentId : dto.departmentId || null;
     await this.checkPlacement(role, departmentId, branchId);
     return this.prisma.user.update({
       where: { id },

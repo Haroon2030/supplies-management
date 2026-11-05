@@ -20,7 +20,7 @@ interface AdminUser {
 interface Branch { id: string; name: string }
 interface Dept { id: string; name: string }
 
-const ROLES: Role[] = ['EMPLOYEE', 'DEPT_MANAGER', 'WAREHOUSE_KEEPER', 'ADMIN'];
+const ROLES: Role[] = ['EMPLOYEE', 'DEPT_MANAGER', 'BRANCH_MANAGER', 'WAREHOUSE_KEEPER', 'ADMIN'];
 
 export default function AdminPage() {
   const { t } = useI18n();
@@ -84,16 +84,21 @@ function UserDialog({ user, isSelf, onClose }: { user: AdminUser | null; isSelf:
     username: user?.username ?? '', email: user?.email ?? '', fullName: user?.fullName ?? '', password: '', role: (user?.role ?? 'EMPLOYEE') as Role,
     branchId: user?.branch?.id ?? '', departmentId: user?.department?.id ?? '', active: user?.active ?? true,
   });
-  const needsDept = f.role === 'EMPLOYEE' || f.role === 'DEPT_MANAGER';
-  const needsBranch = f.role !== 'ADMIN';
+  // الظاهر والإلزامي حسب الدور (الرافع: أحدهما على الأقل)
+  const showDept = f.role === 'EMPLOYEE' || f.role === 'DEPT_MANAGER';
+  const showBranch = f.role !== 'ADMIN';
+  const deptRequired = f.role === 'DEPT_MANAGER';
+  const branchRequired = f.role === 'BRANCH_MANAGER' || f.role === 'WAREHOUSE_KEEPER';
+  const eitherOk = f.role !== 'EMPLOYEE' || !!f.branchId || !!f.departmentId;
   const deptsQ = useQuery({ queryKey: ['departments'], queryFn: () => api<Dept[]>('/departments') });
   const depts = deptsQ.data ?? [];
 
   const save = useMutation({
     mutationFn: () => {
+      if (!eitherOk) throw new Error(t('roleHintEMPLOYEE'));
       const body = {
         fullName: f.fullName, role: f.role, active: f.active,
-        branchId: needsBranch ? f.branchId : undefined, departmentId: needsDept ? f.departmentId : undefined,
+        branchId: showBranch ? f.branchId : undefined, departmentId: showDept ? f.departmentId : undefined,
         password: f.password || undefined,
       };
       return user
@@ -119,16 +124,17 @@ function UserDialog({ user, isSelf, onClose }: { user: AdminUser | null; isSelf:
               {ROLES.map((r) => <option key={r} value={r}>{t(`role_${r}`)}</option>)}
             </select>
           </Field>
-          {needsBranch && (
-            <Field label={t('branch')}>
-              <select className="field" required value={f.branchId} onChange={(e) => setF({ ...f, branchId: e.target.value })}>
+          <p className="text-xs text-muted sm:col-span-2">{t(`roleHint${f.role}`)}</p>
+          {showBranch && (
+            <Field label={branchRequired ? t('branch') : `${t('branch')} (${t('optionalWord')})`}>
+              <select className="field" required={branchRequired} value={f.branchId} onChange={(e) => setF({ ...f, branchId: e.target.value })}>
                 <option value="">—</option>{branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </Field>
           )}
-          {needsDept && (
-            <Field label={t('department')}>
-              <select className="field" required value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}>
+          {showDept && (
+            <Field label={deptRequired ? t('department') : `${t('department')} (${t('optionalWord')})`}>
+              <select className="field" required={deptRequired} value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}>
                 <option value="">—</option>{depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </Field>
