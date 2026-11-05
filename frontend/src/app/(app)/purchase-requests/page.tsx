@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Badge, Button, Card, Dialog, EmptyState, ErrorState, PageHeader, Spinner } from '@/components/ui';
+import { useConfirm } from '@/components/ui/confirm';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -19,6 +20,7 @@ const tone: Record<PurchaseRequestRow['status'], Tone> = { OPEN: 'accent', ORDER
 export default function PurchaseRequestsPage() {
   const { t, fmt } = useI18n();
   const { user } = useAuth();
+  const { ask, dialog: confirmDialog } = useConfirm();
   const qc = useQueryClient();
   const del = useMutation({
     mutationFn: (id: string) => api(`/purchase-requests/${id}`, { method: 'DELETE' }),
@@ -50,7 +52,7 @@ export default function PurchaseRequestsPage() {
       <PageHeader
         title={t('navPurchase')}
         actions={activeCount >= 2 && (
-          <Button variant="glass" loading={merge.isPending} onClick={() => { if (window.confirm(t('confirmMerge'))) merge.mutate(); }}>
+          <Button variant="glass" loading={merge.isPending} onClick={() => ask(t('confirmMerge'), () => merge.mutate(), 'primary')}>
             <Layers className="size-4" /> {t('mergeAll')} ({activeCount})
           </Button>
         )}
@@ -96,7 +98,7 @@ export default function PurchaseRequestsPage() {
               </div>
               {user?.role === 'ADMIN' && (
                 <div className="mb-2 flex justify-end">
-                  <Button variant="danger" size="sm" loading={del.isPending && del.variables === p.id} onClick={() => { if (window.confirm(t('confirmDelPR'))) del.mutate(p.id); }}>
+                  <Button variant="danger" size="sm" loading={del.isPending && del.variables === p.id} onClick={() => ask(t('confirmDelPR'), () => del.mutate(p.id))}>
                     <Trash2 className="size-3.5" /> {t('delPR')}
                   </Button>
                 </div>
@@ -113,6 +115,7 @@ export default function PurchaseRequestsPage() {
         <Card className="mt-4"><Pagination {...pg} onPage={pg.setPage} /></Card>
         </>
       )}
+      {confirmDialog}
       {viewing && q.data?.find((x) => x.id === viewing) && (
         <PurchaseDocumentDialog pr={q.data.find((x) => x.id === viewing)!} onClose={() => setViewing(null)} />
       )}

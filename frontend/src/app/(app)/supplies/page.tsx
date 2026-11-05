@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button, Card, Dialog, EmptyState, ErrorState, Field, PageHeader, Spinner, TableWrap, td, th } from '@/components/ui';
+import { useConfirm } from '@/components/ui/confirm';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -194,6 +195,7 @@ function SupplyViewDialog({ id, onClose }: { id: string; onClose: () => void }) 
   const { t, fmt } = useI18n();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { ask, dialog: confirmDialog } = useConfirm();
   const q = useQuery({ queryKey: ['supply', id], queryFn: () => api<SupplyDetail>(`/supplies/${id}`) });
   const del = useMutation({
     mutationFn: () => api(`/supplies/${id}`, { method: 'DELETE' }),
@@ -232,13 +234,14 @@ function SupplyViewDialog({ id, onClose }: { id: string; onClose: () => void }) 
           {s.purchaseRequest && <p className="text-xs text-muted">{t('supplyLinkPR')}: #{s.purchaseRequest.number}</p>}
           {user?.role === 'ADMIN' && (
             <div className="flex justify-end">
-              <Button variant="danger" loading={del.isPending} onClick={() => { if (window.confirm(t('confirmDelSupply'))) del.mutate(); }}>
+              <Button variant="danger" loading={del.isPending} onClick={() => ask(t('confirmDelSupply'), () => del.mutate())}>
                 <Trash2 className="size-4" /> {t('delSupply')}
               </Button>
             </div>
           )}
         </div>
       )}
+      {confirmDialog}
     </Dialog>
   );
 }

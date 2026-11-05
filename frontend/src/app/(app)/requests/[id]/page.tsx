@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useConfirm } from '@/components/ui/confirm';
 import { RequestForm } from '@/components/request-form';
 import { Badge, Button, Card, CardHeader, Dialog, ErrorState, Field, PageHeader, Spinner, TableWrap, td, th } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -47,6 +48,7 @@ export default function RequestDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const { ask, dialog: confirmDialog } = useConfirm();
   const del = useMutation({
     mutationFn: () => api(`/requests/${id}`, { method: 'DELETE' }),
     onSuccess: () => { toast.success(t('deletedOk')); refresh(); router.replace('/requests'); },
@@ -152,14 +154,14 @@ export default function RequestDetailPage() {
               </Button>
             )}
             {canSkip && (
-              <Button variant="glass" loading={act.isPending} onClick={() => { if (window.confirm(t('confirmSkip'))) act.mutate({ path: '/issue' }); }}>
+              <Button variant="glass" loading={act.isPending} onClick={() => ask(t('confirmSkip'), () => act.mutate({ path: '/issue' }), 'primary')}>
                 <Zap className="size-4" /> {t('skipApproval')}
               </Button>
             )}
             {canEdit && <Button onClick={() => setEditing(true)}>{t('editAndResend')}</Button>}
             {canCancel && <Button variant="ghost" loading={act.isPending} onClick={() => act.mutate({ path: '/cancel' })}>{t('cancelRequest')}</Button>}
             {isAdmin && (
-              <Button variant="danger" className="ms-auto" loading={del.isPending} onClick={() => { if (window.confirm(t('confirmDelRequest'))) del.mutate(); }}>
+              <Button variant="danger" className="ms-auto" loading={del.isPending} onClick={() => ask(t('confirmDelRequest'), () => del.mutate())}>
                 <Trash2 className="size-4" /> {t('delRequest')}
               </Button>
             )}
@@ -181,6 +183,8 @@ export default function RequestDetailPage() {
           ))}
         </ol>
       </Card>
+
+      {confirmDialog}
 
       <Dialog
         open={decision !== null}

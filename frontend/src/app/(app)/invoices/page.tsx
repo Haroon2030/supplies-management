@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button, Card, Dialog, EmptyState, ErrorState, Field, PageHeader, Spinner, TableWrap, td, th } from '@/components/ui';
+import { useConfirm } from '@/components/ui/confirm';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -231,6 +232,7 @@ function InvoiceDocumentDialog({ id, onClose }: { id: string; onClose: () => voi
   const { t, fmt, dir } = useI18n();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { ask, dialog: confirmDialog } = useConfirm();
   const del = useMutation({
     mutationFn: () => api(`/invoices/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
@@ -275,12 +277,13 @@ function InvoiceDocumentDialog({ id, onClose }: { id: string; onClose: () => voi
         <>
           <div className="no-print mb-4 flex justify-end gap-2">
             {user?.role === 'ADMIN' && (
-              <Button variant="danger" loading={del.isPending} onClick={() => { if (window.confirm(t('confirmDelInvoice'))) del.mutate(); }}>
+              <Button variant="danger" loading={del.isPending} onClick={() => ask(t('confirmDelInvoice'), () => del.mutate())}>
                 <Trash2 className="size-4" /> {t('delInvoice')}
               </Button>
             )}
             <Button onClick={print}><Printer className="size-4" /> {t('print')}</Button>
           </div>
+          {confirmDialog}
 
           {/* ورقة الفاتورة: خلفية بيضاء بنمط مستند رسمي */}
           <article dir={dir} className="print-area mx-auto w-full max-w-[900px] rounded-lg bg-white p-8 text-[#14171c] shadow-xl sm:p-10">
