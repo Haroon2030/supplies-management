@@ -23,7 +23,14 @@ export class PurchaseRequestsService {
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: {
-        mergedFrom: { select: { number: true, request: { select: { number: true } } }, orderBy: { number: 'asc' } },
+        mergedFrom: {
+          orderBy: { number: 'asc' },
+          select: {
+            number: true,
+            request: { select: { number: true, branch: { select: { name: true } }, department: { select: { name: true } }, section: { select: { name: true } } } },
+            lines: { select: { quantity: true, item: { select: { name: true } } } },
+          },
+        },
         request: { select: { id: true, number: true, department: { select: { name: true } }, branch: { select: { name: true } } } },
         lines: { include: { item: { select: { name: true, sku: true, unit: true } } } },
       },

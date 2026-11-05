@@ -65,7 +65,11 @@ export interface PurchaseRequestRow {
   id: string; number: number; status: 'OPEN' | 'ORDERED' | 'RECEIVED' | 'CANCELLED'; createdAt: string;
   /** REORDER: أُنشئ تلقائياً عند بلوغ الحد الأدنى · SHORTAGE: ناتج عن عجز في طلب */
   kind: 'REORDER' | 'SHORTAGE' | 'CONSOLIDATED';
-  mergedFrom?: { number: number; request: { number: number } | null }[];
+  mergedFrom?: {
+    number: number;
+    request: { number: number; branch: { name: string }; department: { name: string }; section: { name: string } | null } | null;
+    lines: { quantity: number; item: { name: string } }[];
+  }[];
   request: { id: string; number: number; department: { name: string }; branch: { name: string } } | null;
   lines: { id: string; quantity: number; item: { name: string; sku: string; unit: string } }[];
 }
