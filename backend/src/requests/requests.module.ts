@@ -10,6 +10,7 @@ import {
 import { AuthUser, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '../common/auth';
 import { allocateFifo } from '../inventory/fifo';
 import { nextNumber } from '../common/numbering';
+import { requesterScope } from '../common/scope';
 import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseRequestsModule } from '../purchase-requests/purchase-requests.module';
 import { ReplenishmentService } from '../purchase-requests/replenishment.service';
@@ -72,7 +73,7 @@ export class RequestsService {
         return { OR: [{ departmentId: user.departmentId ?? '__none__' }, { requesterId: user.id }] };
       case Role.BRANCH_MANAGER:
         return { OR: [{ branchId: user.branchId ?? '__none__' }, { requesterId: user.id }] };
-      default: return { requesterId: user.id };
+      default: return requesterScope(user);
     }
   }
 

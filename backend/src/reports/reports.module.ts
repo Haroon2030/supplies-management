@@ -2,6 +2,7 @@ import { Controller, Get, Injectable, Module, Query, UseGuards } from '@nestjs/c
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Prisma, Role } from '@prisma/client';
 import { AuthUser, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '../common/auth';
+import { requesterScope } from '../common/scope';
 import { PrismaService } from '../prisma/prisma.service';
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -124,13 +125,17 @@ export class ReportsService {
   /** لوحة تتغير بحسب الدور: الموظف/المدير/أمين المستودع/المدير العام. */
   async dashboard(user: AuthUser) {
     const scope: Prisma.RequestWhereInput =
-      user.role === Role.EMPLOYEE ? { requesterId: user.id }
+      user.role === Role.EMPLOYEE ? requesterScope(user)
       : user.role === Role.DEPT_MANAGER ? { departmentId: user.departmentId ?? '__none__' }
       : user.role === Role.BRANCH_MANAGER ? { branchId: user.branchId ?? '__none__' }
       : {};
 
     const byStatus = await this.prisma.request.groupBy({ by: ['status'], where: scope, _count: true });
     const counts = Object.fromEntries(byStatus.map((s) => [s.status, s._count])) as Record<string, number>;
+    // "بحاجة لتعديل" تخص صاحب الطلب وحده حتى لو رأى الرافع طلبات فرعه/إدارته
+    const needsEditCount = user.role === Role.EMPLOYEE
+      ? await this.prisma.request.count({ where: { requesterId: user.id, status: 'NEEDS_EDIT' } })
+      : counts.NEEDS_EDIT ?? 0;
 
     // آخر 6 أشهر (للمنحنى والفئات) وآخر 7 أيام (للأعمدة الأسبوعية)
     const since = new Date(); since.setMonth(since.getMonth() - 5, 1); since.setHours(0, 0, 0, 0);
@@ -161,7 +166,7 @@ export class ReportsService {
       weekly,
       pipeline: {
         pendingManager: counts.PENDING_MANAGER ?? 0,
-        needsEdit: counts.NEEDS_EDIT ?? 0,
+        needsEdit: needsEditCount,
         pendingWarehouse: counts.PENDING_WAREHOUSE ?? 0,
         awaitingPurchase: (counts.AWAITING_PURCHASE ?? 0) + (counts.PARTIALLY_ISSUED ?? 0),
         issued: counts.ISSUED ?? 0,
