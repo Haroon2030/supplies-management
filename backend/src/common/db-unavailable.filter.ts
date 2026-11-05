@@ -18,7 +18,15 @@ export class DbUnavailableFilter implements ExceptionFilter {
       e instanceof Prisma.PrismaClientInitializationError || DbUnavailableFilter.CONNECTION_CODES.has(e.code);
 
     if (!isConnection) {
-      // أخطاء الاستعلام الأخرى (تعارض فريد، سجل غير موجود...) تُعالجها الخدمات نفسها؛ هنا شبكة أمان فقط.
+      // شبكة أمان لأخطاء الاستعلام التي لم تعالجها الخدمات: حالات HTTP صحيحة بدل 500 عام.
+      const code = (e as Prisma.PrismaClientKnownRequestError).code;
+      const map: Record<string, [number, string]> = {
+        P2025: [HttpStatus.NOT_FOUND, 'السجل المطلوب غير موجود'],
+        P2002: [HttpStatus.CONFLICT, 'القيمة مستخدمة مسبقاً (تكرار)'],
+        P2003: [HttpStatus.CONFLICT, 'لا يمكن إتمام العملية لوجود سجلات مرتبطة'],
+      };
+      const hit = map[code];
+      if (hit) return res.status(hit[0]).json({ statusCode: hit[0], message: hit[1] });
       this.log.error(e.message);
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ statusCode: 500, message: 'Internal server error' });
     }

@@ -14,11 +14,14 @@ async function bootstrap() {
   app.useGlobalFilters(new DbUnavailableFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 
-  const doc = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder().setTitle('Procurement API').setVersion('1.0').addBearerAuth().build(),
-  );
-  SwaggerModule.setup('api/docs', app, doc);
+  // وثائق Swagger تكشف كل المسارات: تُعطَّل في الإنتاج إلا بـ ENABLE_SWAGGER=1
+  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === '1') {
+    const doc = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder().setTitle('Procurement API').setVersion('1.0').addBearerAuth().build(),
+    );
+    SwaggerModule.setup('api/docs', app, doc);
+  }
 
   await app.listen(process.env.PORT ?? 4000);
 }

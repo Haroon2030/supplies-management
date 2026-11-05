@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { ArrayMinSize, IsArray, IsOptional, IsString } from 'class-validator';
 import { JwtAuthGuard, Roles, RolesGuard } from '../common/auth';
-import { nextNumber } from '../common/numbering';
+import { LONG_TX, nextNumber, retryOnUnique } from '../common/numbering';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReplenishmentService } from './replenishment.service';
 
@@ -65,7 +65,7 @@ export class PurchaseRequestsService {
     for (const pr of prs) for (const l of pr.lines) totals.set(l.itemId, (totals.get(l.itemId) ?? 0) + l.quantity);
     const allOrdered = prs.every((p) => p.status === 'ORDERED');
 
-    return this.prisma.$transaction(async (tx) => {
+    return retryOnUnique(() => this.prisma.$transaction(async (tx) => {
       const merged = await tx.purchaseRequest.create({
         data: {
           number: await nextNumber(tx, 'purchase'), kind: 'CONSOLIDATED', status: allOrdered ? 'ORDERED' : 'OPEN',
@@ -74,7 +74,7 @@ export class PurchaseRequestsService {
       });
       await tx.purchaseRequest.updateMany({ where: { id: { in: prs.map((p) => p.id) } }, data: { status: 'CANCELLED', mergedIntoId: merged.id } });
       return merged;
-    });
+    }, LONG_TX));
   }
 
   async markOrdered(id: string) {

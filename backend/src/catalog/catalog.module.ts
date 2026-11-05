@@ -98,7 +98,7 @@ export class CatalogController {
   @Get('sections') sections() { return this.svc.sections(); }
   @Get('departments') departments() { return this.svc.departments(); }
   @Get('items') items() { return this.svc.items(); }
-  @Get('suppliers') suppliers() { return this.svc.suppliers(); }
+  @Get('suppliers') @Roles(Role.WAREHOUSE_KEEPER) suppliers() { return this.svc.suppliers(); }
 
   @Post('items') @Roles(Role.WAREHOUSE_KEEPER)
   createItem(@Body() dto: CreateItemDto) { return this.svc.createItem(dto); }

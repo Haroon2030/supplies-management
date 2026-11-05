@@ -4,25 +4,25 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Prisma, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsDateString, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsDateString, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { AuthUser, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '../common/auth';
-import { nextNumber } from '../common/numbering';
+import { LONG_TX, nextNumber, retryOnUnique } from '../common/numbering';
 import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseRequestsModule } from '../purchase-requests/purchase-requests.module';
 import { ReplenishmentService } from '../purchase-requests/replenishment.service';
 
 export class SupplyLineDto {
   @IsString() itemId!: string;
-  @IsInt() @Min(1) quantity!: number;
+  @IsInt() @Min(1) @Max(1_000_000) quantity!: number;
   /** التكلفة اختيارية (صفر إن لم تُعرف، مثل التبرعات) وتدخل في تقييم المخزون FIFO. */
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) unitCost?: number;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999) unitCost?: number;
 }
 export class CreateSupplyDto {
   @IsOptional() @IsString() branchId?: string;
   @IsDateString() receivedAt!: string;
   /** مصدر التوريد: تبرع، رصيد افتتاحي، تحويل من فرع، عهدة... */
-  @IsOptional() @IsString() source?: string;
-  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() @MaxLength(100) source?: string;
+  @IsOptional() @IsString() @MaxLength(500) notes?: string;
   /** يُعلَّم طلب الشراء المرتبط كمستلم. */
   @IsOptional() @IsString() purchaseRequestId?: string;
   @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => SupplyLineDto)
@@ -71,7 +71,7 @@ export class SuppliesService {
     }
     const date = new Date(dto.receivedAt);
 
-    const created = await this.prisma.$transaction(async (tx) => {
+    const created = await retryOnUnique(() => this.prisma.$transaction(async (tx) => {
       const supply = await tx.supplyReceipt.create({
         data: {
           number: await nextNumber(tx, 'supply'), branchId, receivedAt: date,
@@ -90,7 +90,7 @@ export class SuppliesService {
         await tx.purchaseRequest.update({ where: { id: dto.purchaseRequestId }, data: { status: 'RECEIVED' } });
       }
       return supply;
-    });
+    }, LONG_TX));
     await this.replenishment.safeSync(); // التوريد رفع المخزون: تُغلق طلبات الحد الأدنى المعالَجة
     return created;
   }
@@ -102,7 +102,15 @@ export class SuppliesService {
     if (lines.some((l) => l.batch && l.batch.qtyRemaining < l.batch.qtyReceived)) {
       throw new ConflictException('صُرف جزء من بضاعة هذا السند. احذف طلبات الصرف المرتبطة به أولاً ثم أعد المحاولة.');
     }
+    const sup = await this.prisma.supplyReceipt.findUniqueOrThrow({ where: { id }, select: { purchaseRequestId: true } });
     await this.prisma.supplyReceipt.delete({ where: { id } }); // الأسطر والدفعات تُحذف تتابعياً
+    if (sup.purchaseRequestId) {
+      const [inv, other] = await Promise.all([
+        this.prisma.purchaseInvoice.count({ where: { purchaseRequestId: sup.purchaseRequestId } }),
+        this.prisma.supplyReceipt.count({ where: { purchaseRequestId: sup.purchaseRequestId } }),
+      ]);
+      if (inv + other === 0) await this.prisma.purchaseRequest.updateMany({ where: { id: sup.purchaseRequestId, status: 'RECEIVED' }, data: { status: 'OPEN' } });
+    }
     await this.replenishment.safeSync();
     return { ok: true };
   }

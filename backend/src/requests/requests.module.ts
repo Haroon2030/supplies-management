@@ -5,11 +5,11 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Prisma, RequestStatus, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, Min, MinLength, ValidateNested,
+  ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import { AuthUser, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '../common/auth';
 import { allocateFifo } from '../inventory/fifo';
-import { nextNumber } from '../common/numbering';
+import { LONG_TX, nextNumber, retryOnUnique } from '../common/numbering';
 import { requesterScope } from '../common/scope';
 import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseRequestsModule } from '../purchase-requests/purchase-requests.module';
@@ -18,10 +18,10 @@ import { ReplenishmentService } from '../purchase-requests/replenishment.service
 /* ----------------------------- DTOs ----------------------------- */
 export class RequestLineDto {
   @IsString() itemId!: string;
-  @IsInt() @Min(1) quantity!: number;
+  @IsInt() @Min(1) @Max(1_000_000) quantity!: number;
 }
 export class SaveRequestDto {
-  @IsOptional() @IsString() justification?: string;
+  @IsOptional() @IsString() @MaxLength(500) justification?: string;
   /** للمدير العام وأمين المستودع فقط (حسابهما بلا إدارة/فرع)؛ غيرهما يُستخدم مكانهما المسجّل. */
   @IsOptional() @IsString() departmentId?: string;
   @IsOptional() @IsString() branchId?: string;
@@ -32,7 +32,7 @@ export class SaveRequestDto {
 }
 export class ApprovedLineDto {
   @IsString() lineId!: string;
-  @IsInt() @Min(0) approvedQty!: number;
+  @IsInt() @Min(0) @Max(1_000_000) approvedQty!: number;
 }
 export class ApproveDto {
   @IsOptional() @IsString() note?: string;
@@ -122,7 +122,7 @@ export class RequestsService {
     await this.assertItemsActive(dto.lines);
     // طلب مدير الإدارة نفسه يُعتمد تلقائياً ويذهب للمستودع.
     const auto = user.role === Role.DEPT_MANAGER || user.role === Role.BRANCH_MANAGER;
-    return this.prisma.$transaction(async (tx) => tx.request.create({
+    return retryOnUnique(() => this.prisma.$transaction(async (tx) => tx.request.create({
       data: {
         number: await nextNumber(tx, 'request'),
         requesterId: user.id, departmentId, branchId, sectionId: dto.sectionId || null,
@@ -137,7 +137,7 @@ export class RequestsService {
         },
       },
       include: FULL_INCLUDE,
-    }));
+    })));
   }
 
   async update(user: AuthUser, id: string, dto: SaveRequestDto) {
@@ -186,7 +186,7 @@ export class RequestsService {
       await tx.requestEvent.deleteMany({ where: { requestId: id } });
       await tx.requestLine.deleteMany({ where: { requestId: id } });
       await tx.request.delete({ where: { id } });
-    });
+    }, LONG_TX);
     await this.replenishment.safeSync();
     return { ok: true };
   }
@@ -285,7 +285,14 @@ export class RequestsService {
 
     if (!ISSUABLE.includes(req.status)) throw new ConflictException('الطلب غير جاهز للصرف');
 
+    const snapshot = req; // الأسطر قرئت قبل المعاملة؛ نتأكد داخلها أن الطلب لم يتغير (وإلا صُرف مرتين)
     await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.request.updateMany({
+        where: { id, updatedAt: snapshot.updatedAt, status: { in: ISSUABLE } },
+        data: { updatedAt: new Date() },
+      });
+      if (claimed.count !== 1) throw new ConflictException('الطلب صُرف أو تغيّر للتو، حدّث الصفحة وأعد المحاولة');
+
       const shortages: { itemId: string; quantity: number }[] = [];
       const issue = await tx.stockIssue.create({ data: { requestId: id, issuedById: user.id } });
       let issuedNow = 0;
@@ -358,7 +365,7 @@ export class RequestsService {
           },
         },
       });
-    });
+    }, LONG_TX);
 
     // الصرف خفّض المخزون: قد يصل صنف إلى حده الأدنى فيُنشأ طلب شراء تلقائي
     await this.replenishment.safeSync();

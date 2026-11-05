@@ -10,9 +10,11 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const monthKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 const dayKey = (d: Date) => `${monthKey(d)}-${pad(d.getDate())}`;
 
+const validDate = (v?: string) => { const d = v ? new Date(v) : null; return d && !Number.isNaN(d.getTime()) ? d : null; };
+
 function range(from?: string, to?: string) {
-  const end = to ? new Date(to) : new Date();
-  const start = from ? new Date(from) : new Date(end.getFullYear(), end.getMonth() - 5, 1);
+  const end = validDate(to) ?? new Date();
+  const start = validDate(from) ?? new Date(end.getFullYear(), end.getMonth() - 5, 1);
   end.setHours(23, 59, 59, 999);
   return { start, end };
 }

@@ -8,13 +8,14 @@ import {
 } from 'class-validator';
 import { AuthUser, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '../common/auth';
 import { PrismaService } from '../prisma/prisma.service';
+import { LONG_TX } from '../common/numbering';
 import { PurchaseRequestsModule } from '../purchase-requests/purchase-requests.module';
 import { ReplenishmentService } from '../purchase-requests/replenishment.service';
 
 export class InvoiceLineDto {
   @IsString() itemId!: string;
-  @IsInt() @Min(1) quantity!: number;
-  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) unitCost!: number;
+  @IsInt() @Min(1) @Max(1_000_000) quantity!: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999) unitCost!: number;
 }
 export class CreateInvoiceDto {
   @IsString() number!: string;
@@ -68,9 +69,21 @@ export class InvoicesService {
     if (lines.some((l) => l.batch && l.batch.qtyRemaining < l.batch.qtyReceived)) {
       throw new ConflictException('صُرف جزء من بضاعة هذه الفاتورة. احذف طلبات الصرف المرتبطة بها أولاً ثم أعد المحاولة.');
     }
+    const inv = await this.prisma.purchaseInvoice.findUniqueOrThrow({ where: { id }, select: { purchaseRequestId: true } });
     await this.prisma.purchaseInvoice.delete({ where: { id } }); // الأسطر والدفعات تُحذف تتابعياً
+    await this.reopenPurchaseRequest(inv.purchaseRequestId);
     await this.replenishment.safeSync(); // نقص المخزون قد يولّد طلب شراء تلقائياً
     return { ok: true };
+  }
+
+  /** حذف المستند الذي أغلق طلب الشراء يُعيده مفتوحاً (ما لم يغطِّه مستند استلام آخر)، حتى لا يبقى «مستلماً» ولا بضاعة. */
+  private async reopenPurchaseRequest(prId: string | null) {
+    if (!prId) return;
+    const [inv, sup] = await Promise.all([
+      this.prisma.purchaseInvoice.count({ where: { purchaseRequestId: prId } }),
+      this.prisma.supplyReceipt.count({ where: { purchaseRequestId: prId } }),
+    ]);
+    if (inv + sup === 0) await this.prisma.purchaseRequest.updateMany({ where: { id: prId, status: 'RECEIVED' }, data: { status: 'OPEN' } });
   }
 
   async create(user: AuthUser, dto: CreateInvoiceDto) {
@@ -118,7 +131,7 @@ export class InvoicesService {
         await tx.purchaseRequest.update({ where: { id: dto.purchaseRequestId }, data: { status: 'RECEIVED' } });
       }
       return invoice;
-    });
+    }, LONG_TX);
     // الاستلام رفع المخزون: تُغلق طلبات الحد الأدنى التي عولج نقصها
     await this.replenishment.safeSync();
     return created;

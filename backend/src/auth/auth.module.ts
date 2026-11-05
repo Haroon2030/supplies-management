@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Injectable, Module, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, HttpStatus, Injectable, Module, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule, PassportStrategy } from '@nestjs/passport';
@@ -40,18 +40,45 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 }
 
+/** تجزئة وهمية: تُقارن كلمة المرور بها عند غياب المستخدم فيتساوى زمن الرد ولا يُكشف وجود الرقم. */
+const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
+const MAX_FAILS = 8;
+const WINDOW_MS = 10 * 60_000;
+
 @Injectable()
 export class AuthService {
+  /** محاولات الدخول الفاشلة لكل رقم مستخدم (في الذاكرة): 8 فشلات خلال 10 دقائق ثم 429 حتى انتهاء المهلة. */
+  private readonly fails = new Map<string, { n: number; first: number }>();
+
   constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService) {}
+
+  private throttled(key: string): boolean {
+    const f = this.fails.get(key);
+    if (!f) return false;
+    if (Date.now() - f.first > WINDOW_MS) { this.fails.delete(key); return false; }
+    return f.n >= MAX_FAILS;
+  }
+  private recordFail(key: string) {
+    const f = this.fails.get(key);
+    if (!f || Date.now() - f.first > WINDOW_MS) this.fails.set(key, { n: 1, first: Date.now() });
+    else f.n++;
+    if (this.fails.size > 5000) for (const [k, v] of this.fails) if (Date.now() - v.first > WINDOW_MS) this.fails.delete(k);
+  }
 
   async login(dto: LoginDto) {
     const id = dto.username.trim();
+    const key = id.toLowerCase();
+    if (this.throttled(key)) throw new HttpException('محاولات دخول كثيرة. أعد المحاولة بعد عدة دقائق.', HttpStatus.TOO_MANY_REQUESTS);
     const user = await this.prisma.user.findFirst({
       where: { OR: [{ username: id }, { email: id.toLowerCase() }] },
       include: { department: true, branch: true },
     });
-    const ok = user && user.active && (await bcrypt.compare(dto.password, user.passwordHash));
-    if (!user || !ok) throw new UnauthorizedException('رقم المستخدم أو كلمة المرور غير صحيحة');
+    const matches = await bcrypt.compare(dto.password, user?.passwordHash ?? DUMMY_HASH);
+    if (!user || !user.active || !matches) {
+      this.recordFail(key);
+      throw new UnauthorizedException('رقم المستخدم أو كلمة المرور غير صحيحة');
+    }
+    this.fails.delete(key);
     const accessToken = await this.jwt.signAsync({ sub: user.id, role: user.role });
     return { accessToken, user: this.profile(user) };
   }
