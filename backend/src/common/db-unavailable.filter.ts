@@ -24,6 +24,7 @@ export class DbUnavailableFilter implements ExceptionFilter {
         P2025: [HttpStatus.NOT_FOUND, 'السجل المطلوب غير موجود'],
         P2002: [HttpStatus.CONFLICT, 'القيمة مستخدمة مسبقاً (تكرار)'],
         P2003: [HttpStatus.CONFLICT, 'لا يمكن إتمام العملية لوجود سجلات مرتبطة'],
+        P2034: [HttpStatus.CONFLICT, 'تعارضت العملية مع عملية متزامنة، أعد المحاولة'],
       };
       const hit = map[code];
       if (hit) return res.status(hit[0]).json({ statusCode: hit[0], message: hit[1] });

@@ -16,6 +16,7 @@ export class CreateItemDto {
   @IsOptional() @IsString() unit?: string;
   @IsOptional() @IsInt() @Min(0) minStock?: number;
   @IsOptional() @IsInt() @Min(0) reorderQty?: number;
+  @IsOptional() @IsBoolean() isCustody?: boolean;
 }
 export class UpdateItemDto {
   @IsOptional() @IsString() name?: string;
@@ -26,6 +27,7 @@ export class UpdateItemDto {
   @IsOptional() @IsInt() @Min(0) minStock?: number;
   @IsOptional() @IsInt() @Min(0) reorderQty?: number;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsBoolean() isCustody?: boolean;
 }
 export class CreateSupplierDto {
   @IsString() @MinLength(2) name!: string;

@@ -77,6 +77,8 @@ model User {
   actions      RequestEvent[]
   invoices     PurchaseInvoice[]
   supplies     SupplyReceipt[]
+  custodyReceived CustodyReceipt[] @relation("CustodyCustodian")
+  custodyIssued   CustodyReceipt[] @relation("CustodyIssuer")
   issues       StockIssue[]
 }
 
@@ -96,11 +98,13 @@ model Item {
   minStock   Int      @default(0) // الحد الأدنى: عند الوصول إليه يُنشأ طلب شراء تلقائي
   reorderQty Int      @default(0) // كمية إعادة الطلب (0 = تلقائي: ضعف الحد الأدنى − الرصيد)
   active     Boolean  @default(true)
+  isCustody  Boolean  @default(false) // عهدة/أصل: كل وحدة تُسجَّل برقم تسلسلي وتُسلَّم بسند استلام عهدة عند الصرف
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
 
   batches         StockBatch[]
   supplyLines     SupplyLine[]
+  custodyUnits    CustodyUnit[]
   requestLines    RequestLine[]
   invoiceLines    InvoiceLine[]
   purchaseLines   PurchaseRequestLine[]
@@ -218,6 +222,7 @@ model Request {
   events       RequestEvent[]
   issues       StockIssue[]
   purchaseRequests PurchaseRequest[]
+  custodyReceipts  CustodyReceipt[]
 
   @@index([status])
   @@index([departmentId, status])
@@ -256,6 +261,7 @@ model StockIssue {
   issuedBy    User     @relation(fields: [issuedById], references: [id])
   issuedAt    DateTime @default(now())
   allocations IssueAllocation[]
+  custody     CustodyReceipt?
 }
 
 model IssueAllocation {
@@ -295,4 +301,45 @@ model PurchaseRequestLine {
   itemId            String
   item              Item            @relation(fields: [itemId], references: [id])
   quantity          Int
+}
+
+/// سند استلام عهدة: يُنشأ تلقائياً عند صرف أصناف عهدة (أجهزة...). المستلم صاحب الطلب، ويوقّع في الخطوة الأخيرة.
+/// قيمة كل وحدة = تكلفة دفعة FIFO التي خرجت منها، فمجموع السند يطابق قيمة الصرف المحاسبية.
+model CustodyReceipt {
+  id          String        @id @default(cuid())
+  number      Int           @unique
+  issueId     String        @unique
+  issue       StockIssue    @relation(fields: [issueId], references: [id])
+  requestId   String
+  request     Request       @relation(fields: [requestId], references: [id])
+  custodianId String
+  custodian   User          @relation("CustodyCustodian", fields: [custodianId], references: [id])
+  issuedById  String
+  issuedBy    User          @relation("CustodyIssuer", fields: [issuedById], references: [id])
+  status      String        @default("PENDING") // PENDING: بانتظار التوقيع · SIGNED: موقّع ولا يُعدَّل
+  createdAt   DateTime      @default(now())
+  signedAt    DateTime?
+  signerName  String?
+  signerIdNo  String?
+  signature   String?       @db.LongText // صورة التوقيع (PNG base64)
+  units       CustodyUnit[]
+
+  @@index([custodianId])
+  @@index([requestId])
+}
+
+/// وحدة عهدة بعينها: رقم تسلسلي فريد يُطبع ملصقاً على الجهاز.
+model CustodyUnit {
+  id        String         @id @default(cuid())
+  seq       Int            @unique
+  serial    String         @unique
+  receiptId String
+  receipt   CustodyReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item           @relation(fields: [itemId], references: [id])
+  unitCost  Decimal        @db.Decimal(12, 2)
+  status    String         @default("IN_CUSTODY")
+
+  @@index([receiptId])
+  @@index([itemId])
 }

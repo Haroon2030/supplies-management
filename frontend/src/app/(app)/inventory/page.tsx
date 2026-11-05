@@ -131,11 +131,11 @@ function ItemDialog({ item, onClose }: { item: StockRow | null; onClose: () => v
   const cats = useQuery({ queryKey: ['categories'], queryFn: () => api<Category[]>('/categories') });
   const [f, setF] = useState({
     sku: item?.sku ?? '', name: item?.name ?? '', categoryId: item?.categoryId ?? '', unit: item?.unit ?? 'قطعة',
-    minStock: item?.minStock ?? 0, reorderQty: item?.reorderQty ?? 0,
+    minStock: item?.minStock ?? 0, reorderQty: item?.reorderQty ?? 0, isCustody: item?.isCustody ?? false,
   });
   const save = useMutation({
     mutationFn: () => {
-      const body = { name: f.name, categoryId: f.categoryId, unit: f.unit, minStock: Number(f.minStock), reorderQty: Number(f.reorderQty) };
+      const body = { name: f.name, categoryId: f.categoryId, unit: f.unit, minStock: Number(f.minStock), reorderQty: Number(f.reorderQty), isCustody: f.isCustody };
       return item ? api(`/items/${item.id}`, { method: 'PATCH', json: body }) : api('/items', { method: 'POST', json: { ...body, sku: f.sku } });
     },
     onSuccess: () => {
@@ -168,6 +168,10 @@ function ItemDialog({ item, onClose }: { item: StockRow | null; onClose: () => v
             <input className="field tabular-nums" type="number" min={0} step={1} value={f.reorderQty} onChange={(e) => setF({ ...f, reorderQty: int(e.target.value) })} />
           </Field>
         </div>
+        <label className="flex items-start gap-2 rounded-xl bg-white/5 px-4 py-3 text-sm">
+          <input type="checkbox" className="mt-1 accent-[#0a84ff]" checked={f.isCustody} onChange={(e) => setF({ ...f, isCustody: e.target.checked })} />
+          <span>{t('isCustodyLabel')}</span>
+        </label>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
           <Button type="submit" loading={save.isPending}>{t('save')}</Button>

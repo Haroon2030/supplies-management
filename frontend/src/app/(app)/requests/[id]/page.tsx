@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useConfirm } from '@/components/ui/confirm';
+import { CustodyReceiptDialog } from '@/components/custody-receipt';
 import { RequestForm } from '@/components/request-form';
 import { Badge, Button, Card, CardHeader, Dialog, ErrorState, Field, PageHeader, Spinner, TableWrap, td, th } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -29,6 +30,7 @@ export default function RequestDetailPage() {
   const [decision, setDecision] = useState<null | 'reject' | 'return'>(null);
   const [note, setNote] = useState('');
   const [editing, setEditing] = useState(false);
+  const [custodyId, setCustodyId] = useState<string | null>(null);
 
   const refresh = () => {
     for (const k of ['request', 'requests', 'dashboard', 'inventory', 'purchase-requests']) void qc.invalidateQueries({ queryKey: [k] });
@@ -40,6 +42,9 @@ export default function RequestDetailPage() {
       refresh();
       setDecision(null); setNote(''); setEditing(false);
       if (v.path === '/issue') {
+        // صُرفت أجهزة عهدة: تُفتح وثيقة الاستلام فوراً للتوقيع (الخطوة الأخيرة)
+        const pending = r.custodyReceipts?.find((c) => c.status === 'PENDING');
+        if (pending) { setCustodyId(pending.id); toast.success(t('custodyCreatedToast')); }
         r.purchaseRequests.some((p) => p.status !== 'RECEIVED')
           ? toast.warning(t('issuedPartial'))
           : toast.success(t('issuedOk'));
@@ -183,6 +188,22 @@ export default function RequestDetailPage() {
           ))}
         </ol>
       </Card>
+
+      {!!r.custodyReceipts?.length && (
+        <Card className="mb-6">
+          <CardHeader title={t('custodySection')} />
+          <ul className="divide-y divide-line/60 p-2">
+            {r.custodyReceipts.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <span className="font-semibold tabular-nums" dir="ltr">C-{c.number}</span>
+                <Badge tone={c.status === 'SIGNED' ? 'ok' : 'warn'}>{t(c.status === 'SIGNED' ? 'custodySigned' : 'custodyPending')}</Badge>
+                <Button variant="glass" size="sm" onClick={() => setCustodyId(c.id)}>{t('custodyOpen')}</Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+      {custodyId && <CustodyReceiptDialog id={custodyId} onClose={() => { setCustodyId(null); refresh(); }} />}
 
       {confirmDialog}
 

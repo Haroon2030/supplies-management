@@ -30,7 +30,7 @@ export class InventoryService {
       const value = i.batches.reduce((s, b) => s + b.qtyRemaining * Number(b.unitCost), 0);
       return {
         id: i.id, sku: i.sku, name: i.name, unit: i.unit, category: i.category.name,
-        categoryId: i.categoryId, minStock: i.minStock, reorderQty: i.reorderQty, onHand, value, low: onHand <= i.minStock,
+        categoryId: i.categoryId, isCustody: i.isCustody, minStock: i.minStock, reorderQty: i.reorderQty, onHand, value, low: onHand <= i.minStock,
         batches: i.batches.map((b) => ({
           id: b.id, invoiceNumber: b.invoiceLine?.invoice.number ?? `T-${b.supplyLine?.supply.number ?? '?'}`, receivedAt: b.receivedAt,
           qtyReceived: b.qtyReceived, qtyRemaining: b.qtyRemaining, unitCost: Number(b.unitCost),

@@ -12,7 +12,7 @@ export interface Profile {
 
 export interface Item {
   id: string; sku: string; name: string; unit: string; minStock: number; active: boolean;
-  description?: string | null; barcode?: string | null;
+  description?: string | null; barcode?: string | null; isCustody?: boolean;
   category: { id: string; name: string };
 }
 
@@ -32,11 +32,12 @@ export interface RequestDetail extends Omit<RequestRow, 'lines'> {
   }[];
   events: { id: string; action: string; note: string | null; createdAt: string; actor: { fullName: string; role: Role } }[];
   purchaseRequests: { id: string; number: number; status: string }[];
+  custodyReceipts?: { id: string; number: number; status: 'PENDING' | 'SIGNED' }[];
 }
 
 export interface StockRow {
   id: string; sku: string; name: string; unit: string; category: string; categoryId: string;
-  minStock: number; reorderQty: number; onHand: number; value: number; low: boolean;
+  isCustody?: boolean; minStock: number; reorderQty: number; onHand: number; value: number; low: boolean;
   batches: { id: string; invoiceNumber: string; receivedAt: string; qtyReceived: number; qtyRemaining: number; unitCost: number }[];
 }
 

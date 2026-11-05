@@ -54,6 +54,7 @@ const FULL_INCLUDE = {
   lines: { include: { item: { include: { category: true } } } },
   events: { orderBy: { createdAt: 'asc' as const }, include: { actor: { select: { fullName: true, role: true } } } },
   purchaseRequests: { select: { id: true, number: true, status: true } },
+  custodyReceipts: { select: { id: true, number: true, status: true }, orderBy: { number: 'asc' as const } },
 } satisfies Prisma.RequestInclude;
 
 const ISSUABLE: RequestStatus[] = ['PENDING_WAREHOUSE', 'AWAITING_PURCHASE', 'PARTIALLY_ISSUED'];
@@ -174,6 +175,8 @@ export class RequestsService {
         }
         await tx.issueAllocation.deleteMany({ where: { issueId: issue.id } });
       }
+      await tx.custodyUnit.deleteMany({ where: { receipt: { requestId: id } } });
+      await tx.custodyReceipt.deleteMany({ where: { requestId: id } });
       await tx.stockIssue.deleteMany({ where: { requestId: id } });
 
       // طلبات الشراء الناتجة عن هذا الطلب: تُحذف، وإن ارتبطت بها فاتورة يُفك الارتباط فقط
@@ -286,7 +289,7 @@ export class RequestsService {
     if (!ISSUABLE.includes(req.status)) throw new ConflictException('الطلب غير جاهز للصرف');
 
     const snapshot = req; // الأسطر قرئت قبل المعاملة؛ نتأكد داخلها أن الطلب لم يتغير (وإلا صُرف مرتين)
-    await this.prisma.$transaction(async (tx) => {
+    await retryOnUnique(() => this.prisma.$transaction(async (tx) => {
       const claimed = await tx.request.updateMany({
         where: { id, updatedAt: snapshot.updatedAt, status: { in: ISSUABLE } },
         data: { updatedAt: new Date() },
@@ -296,6 +299,11 @@ export class RequestsService {
       const shortages: { itemId: string; quantity: number }[] = [];
       const issue = await tx.stockIssue.create({ data: { requestId: id, issuedById: user.id } });
       let issuedNow = 0;
+      // أصناف العهدة (أجهزة...) تُسجَّل كل وحدة منها برقم تسلسلي وتُسلَّم بسند استلام عهدة
+      const custodyItemIds = new Set(
+        (await tx.item.findMany({ where: { id: { in: req.lines.map((l) => l.itemId) }, isCustody: true }, select: { id: true } })).map((i) => i.id),
+      );
+      const custodyAllocs: { itemId: string; quantity: number; unitCost: Prisma.Decimal }[] = [];
 
       for (const line of req.lines) {
         const need = (line.approvedQty ?? 0) - line.issuedQty;
@@ -317,6 +325,7 @@ export class RequestsService {
             data: { issueId: issue.id, batchId: a.batchId, itemId: line.itemId, quantity: a.quantity, unitCost: a.unitCost },
           });
           issuedNow += a.quantity;
+          if (custodyItemIds.has(line.itemId)) custodyAllocs.push({ itemId: line.itemId, quantity: a.quantity, unitCost: a.unitCost as Prisma.Decimal });
         }
         const got = need - shortage;
         if (got > 0) await tx.requestLine.update({ where: { id: line.id }, data: { issuedQty: { increment: got } } });
@@ -324,6 +333,21 @@ export class RequestsService {
       }
 
       if (issuedNow === 0) await tx.stockIssue.delete({ where: { id: issue.id } });
+
+      // سند استلام العهدة: وحدة لكل قطعة مصروفة بتكلفة دفعتها (FIFO) فيطابق مجموعه قيمة الصرف
+      if (issuedNow > 0 && custodyAllocs.length > 0) {
+        let seq = (await tx.custodyUnit.aggregate({ _max: { seq: true } }))._max.seq ?? 0;
+        const receipt = await tx.custodyReceipt.create({
+          data: { number: await nextNumber(tx, 'custody'), issueId: issue.id, requestId: id, custodianId: req.requesterId, issuedById: user.id },
+        });
+        const units = custodyAllocs.flatMap((a) =>
+          Array.from({ length: a.quantity }, () => {
+            seq += 1;
+            return { seq, serial: `AST-${String(seq).padStart(6, '0')}`, receiptId: receipt.id, itemId: a.itemId, unitCost: a.unitCost };
+          }),
+        );
+        await tx.custodyUnit.createMany({ data: units });
+      }
 
       // طلب الشراء المفتوح لهذا الطلب (إن وجد) يُحدَّث ليطابق العجز الحالي.
       const openPr = await tx.purchaseRequest.findFirst({
@@ -365,7 +389,7 @@ export class RequestsService {
           },
         },
       });
-    }, LONG_TX);
+    }, LONG_TX));
 
     // الصرف خفّض المخزون: قد يصل صنف إلى حده الأدنى فيُنشأ طلب شراء تلقائي
     await this.replenishment.safeSync();

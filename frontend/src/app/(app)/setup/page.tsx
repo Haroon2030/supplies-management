@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 interface SetupItem {
   id: string; sku: string; name: string; description: string | null; barcode: string | null; unit: string;
-  categoryId: string; category: { id: string; name: string };
+  categoryId: string; category: { id: string; name: string }; isCustody?: boolean;
 }
 interface Category { id: string; name: string }
 interface Branch { id: string; name: string; code: string | null; city: string | null }
@@ -107,11 +107,11 @@ function ItemDialog({ item, onClose }: { item: SetupItem | null; onClose: () => 
   const cats = useQuery({ queryKey: ['categories'], queryFn: () => api<Category[]>('/categories') });
   const [f, setF] = useState({
     sku: item?.sku ?? '', name: item?.name ?? '', description: item?.description ?? '', barcode: item?.barcode ?? '',
-    categoryId: item?.categoryId ?? '', unit: item?.unit ?? 'قطعة',
+    categoryId: item?.categoryId ?? '', unit: item?.unit ?? 'قطعة', isCustody: item?.isCustody ?? false,
   });
   const save = useMutation({
     mutationFn: () => {
-      const body = { name: f.name, description: f.description, barcode: f.barcode, categoryId: f.categoryId, unit: f.unit };
+      const body = { name: f.name, description: f.description, barcode: f.barcode, categoryId: f.categoryId, unit: f.unit, isCustody: f.isCustody };
       return item ? api(`/items/${item.id}`, { method: 'PATCH', json: body }) : api('/items', { method: 'POST', json: { ...body, sku: f.sku } });
     },
     onSuccess: () => {
@@ -134,13 +134,21 @@ function ItemDialog({ item, onClose }: { item: SetupItem | null; onClose: () => 
             <input className="field tabular-nums" dir="ltr" inputMode="numeric" value={f.barcode} onChange={(e) => setF({ ...f, barcode: e.target.value })} />
           </Field>
           <Field label={t('category')}>
-            <select className="field" required value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
+            <select className="field" required value={f.categoryId} onChange={(e) => {
+                const cat = cats.data?.find((c) => c.id === e.target.value);
+                // الأجهزة الإلكترونية عهدة افتراضياً عند التعريف الجديد (يمكن تغييرها)
+                setF({ ...f, categoryId: e.target.value, isCustody: item ? f.isCustody : /أجهزة/.test(cat?.name ?? '') || f.isCustody });
+              }}>
               <option value="">—</option>
               {cats.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
           <Field label={t('unit')}><input className="field" value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} /></Field>
         </div>
+        <label className="flex items-start gap-2 rounded-xl bg-white/5 px-4 py-3 text-sm">
+          <input type="checkbox" className="mt-1 accent-[#0a84ff]" checked={f.isCustody} onChange={(e) => setF({ ...f, isCustody: e.target.checked })} />
+          <span>{t('isCustodyLabel')}</span>
+        </label>
         <Field label={t('itemDescription')}>
           <textarea className="field min-h-24" rows={3} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
         </Field>

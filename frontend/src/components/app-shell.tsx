@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import {
-  BarChart3, Bell, Boxes, Info, ClipboardList, LayoutDashboard, LogOut, Menu, PackageCheck, PackagePlus, PlusCircle, Receipt, Settings2, ShoppingCart, Users, X,
+  BarChart3, Bell, Boxes, Info, ClipboardList, ClipboardSignature, LayoutDashboard, LogOut, Menu, PackageCheck, PackagePlus, PlusCircle, Receipt, Settings2, ShoppingCart, Users, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -37,6 +37,7 @@ const NAV: NavItem[] = [
   { href: '/inventory', label: 'navInventory', icon: Boxes, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
   { href: '/invoices', label: 'navInvoices', icon: Receipt, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
   { href: '/supplies', label: 'navSupply', icon: PackagePlus, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
+  { href: '/custody', label: 'navCustody', icon: ClipboardSignature, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
   { href: '/purchase-requests', label: 'navPurchase', icon: ShoppingCart, roles: ['WAREHOUSE_KEEPER'], group: 'stock' },
   { href: '/reports', label: 'navReports', icon: BarChart3, roles: ['WAREHOUSE_KEEPER', 'DEPT_MANAGER'], group: 'insight' },
   { href: '/setup', label: 'navSetup', icon: Settings2, roles: ['ADMIN'], group: 'admin' },
