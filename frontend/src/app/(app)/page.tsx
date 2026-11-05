@@ -45,7 +45,7 @@ export default function DashboardPage() {
   const weekTotal = d.weekly.reduce((s, w) => s + w.requests, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {user.role === 'EMPLOYEE' && p.needsEdit > 0 && (
         <Link href="/requests?stage=edit" className="glass flex items-center gap-3 rounded-[22px] px-5 py-3.5 text-sm hover:bg-white/10">
           <AlertTriangle className="size-4 text-plum" aria-hidden />
@@ -54,93 +54,95 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-        <div className="min-w-0 space-y-4">
-          {/* مؤشرات رئيسية */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi icon={ClipboardList} tone="accent" label={t('kpiTotal')} value={fmt.num(d.total)} href="/requests"
-              sub={<span className={cn('inline-flex items-center gap-1', delta >= 0 ? 'text-ok' : 'text-bad')}>
-                {delta >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
-                {delta >= 0 ? '+' : ''}{fmt.num(delta)} {t('vsLastMonth')}</span>} />
-            <Kpi icon={CheckCircle2} tone="ok" label={t('kpiDone')} value={fmt.num(p.issued)} href="/requests?stage=issued"
-              sub={<span className="text-muted">{pct(p.issued)}% {t('ofTotalPct')}</span>} />
-            <Kpi icon={Loader} tone="warn" label={t('kpiProgress')} value={fmt.num(inProgress)} href="/requests"
-              sub={<span className="text-muted">{pct(inProgress)}% {t('ofTotalPct')}</span>} />
-            <Kpi icon={AlertTriangle} tone="bad" label={user.role === 'ADMIN' ? t('kpiAttentionAdmin') : t('kpiAttention')} value={fmt.num(attention.n)} href={`/requests?stage=${attention.stage}`}
-              sub={<span className={attention.n ? 'text-bad' : 'text-ok'}>{attention.n ? '●' : '✓'}</span>} />
+      {/* 1) مؤشرات الطلبات */}
+      <section aria-label={t('navRequests')} className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi icon={ClipboardList} tone="accent" label={t('kpiTotal')} value={fmt.num(d.total)} href="/requests"
+          sub={<span className={cn('inline-flex items-center gap-1', delta >= 0 ? 'text-ok' : 'text-bad')}>
+            {delta >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+            {delta >= 0 ? '+' : ''}{fmt.num(delta)} {t('vsLastMonth')}</span>} />
+        <Kpi icon={CheckCircle2} tone="ok" label={t('kpiDone')} value={fmt.num(p.issued)} href="/requests?stage=issued"
+          sub={<span className="text-muted">{pct(p.issued)}% {t('ofTotalPct')}</span>} />
+        <Kpi icon={Loader} tone="warn" label={t('kpiProgress')} value={fmt.num(inProgress)} href="/requests"
+          sub={<span className="text-muted">{pct(inProgress)}% {t('ofTotalPct')}</span>} />
+        <Kpi icon={AlertTriangle} tone="bad" label={user.role === 'ADMIN' ? t('kpiAttentionAdmin') : t('kpiAttention')} value={fmt.num(attention.n)} href={`/requests?stage=${attention.stage}`}
+          sub={<span className={attention.n ? 'text-bad' : 'text-ok'}>{attention.n ? '●' : '✓'}</span>} />
+      </section>
+
+      {/* 2) مؤشرات المخزون (أمين المستودع والمدير العام) */}
+      {isStock && d.inventory && (
+        <section aria-label={t('navInventory')} className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Kpi icon={Wallet} tone="accent" label={t('stockValue')} value={fmt.money(d.inventory.value)} />
+          <Kpi icon={Boxes} tone="ok" label={t('stockUnits')} value={fmt.num(d.inventory.units)} />
+          <Kpi icon={AlertTriangle} tone={d.inventory.lowCount ? 'bad' : 'ok'} label={t('lowItems')} value={fmt.num(d.inventory.lowCount)} href="/inventory" />
+          <Kpi icon={ShoppingCart} tone="plum" label={t('openPR')} value={fmt.num(d.inventory.openPurchaseRequests)} href="/purchase-requests" />
+        </section>
+      )}
+
+      {/* 3) لوحة الطلبات بعرض كامل */}
+      <KanbanBoard rows={reqs.data} loading={reqs.isLoading} canCreate />
+
+      {/* 4) ثلاث بطاقات متساوية: الإنجاز · الأسبوع · الفئات */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Card className="h-full p-5">
+          <h2 className="mb-4 text-[17px] font-semibold">{t('progressTitle')}</h2>
+          <div className="grow-in"><Donut done={p.issued} total={active} label={t('completedWord')} /></div>
+          <div className="mt-4 flex items-center justify-center gap-5 text-xs">
+            <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-accent" />{t('completedWord')} {pct(p.issued)}%</span>
+            <span className="flex items-center gap-1.5 text-muted"><span className="size-2 rounded-full bg-white/25" />{t('remainingWord')} {100 - pct(p.issued)}%</span>
           </div>
+          <p className="mt-3 text-center text-xs text-muted tabular-nums">{fmt.num(p.issued)} {t('completedOf')} {fmt.num(active)}</p>
+        </Card>
 
-          <KanbanBoard rows={reqs.data} loading={reqs.isLoading} canCreate={user.role === 'EMPLOYEE' || user.role === 'DEPT_MANAGER'} />
-
-          <div className="grid gap-4 lg:grid-cols-5">
-            <Card className="lg:col-span-3">
-              <CardHeader title={t('requestsPerMonth')} />
-              <div className="p-3 pt-2"><TrendChart data={d.trend.map((r) => ({ ...r, label: fmt.month(r.month) }))} x="label" y="requests" /></div>
-            </Card>
-            <Card className="lg:col-span-2">
-              <CardHeader title={t('unitsByCategory')} />
-              <div className="p-3 pt-2">{d.byCategory.length ? <RankBars data={d.byCategory} label="category" value="units" /> : <EmptyState title={t('none')} />}</div>
-            </Card>
+        <Card className="h-full p-5">
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="text-[17px] font-semibold">{t('weeklyTitle')}</h2>
+            <span className="text-sm font-semibold tabular-nums text-info">{fmt.num(weekTotal)}</span>
           </div>
-        </div>
+          <WeeklyBars data={weekly} />
+        </Card>
 
-        {/* العمود الجانبي: الإنجاز والأسبوع والمخزون */}
-        <div className="min-w-0 space-y-4">
-          <Card className="p-5">
-            <h2 className="mb-4 text-[17px] font-semibold">{t('progressTitle')}</h2>
-            <div className="grow-in"><Donut done={p.issued} total={active} label={t('completedWord')} /></div>
-            <div className="mt-4 flex items-center justify-center gap-5 text-xs">
-              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-accent" />{t('completedWord')} {pct(p.issued)}%</span>
-              <span className="flex items-center gap-1.5 text-muted"><span className="size-2 rounded-full bg-white/25" />{t('remainingWord')} {100 - pct(p.issued)}%</span>
-            </div>
-            <p className="mt-3 text-center text-xs text-muted tabular-nums">{fmt.num(p.issued)} {t('completedOf')} {fmt.num(active)}</p>
+        <Card className="h-full">
+          <CardHeader title={t('unitsByCategory')} />
+          <div className="p-3 pt-2">{d.byCategory.length ? <RankBars data={d.byCategory} label="category" value="units" /> : <EmptyState title={t('none')} />}</div>
+        </Card>
+      </section>
+
+      {/* 5) الاتجاه خلال 6 أشهر بعرض كامل */}
+      <Card>
+        <CardHeader title={t('requestsPerMonth')} />
+        <div className="p-3 pt-2"><TrendChart data={d.trend.map((r) => ({ ...r, label: fmt.month(r.month) }))} x="label" y="requests" /></div>
+      </Card>
+
+      {/* 6) المخزون والفواتير جنباً إلى جنب */}
+      {isStock && d.inventory && (
+        <section className="grid gap-4 lg:grid-cols-2">
+          <Card className="h-full">
+            <CardHeader title={t('lowStockTitle')} />
+            <ul className="p-2">
+              {d.lowItems?.length ? d.lowItems.map((i) => (
+                <li key={i.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-white/5">
+                  <p className="truncate text-sm font-medium">{i.name}</p>
+                  <Badge tone={i.onHand === 0 ? 'bad' : 'warn'}>{fmt.num(i.onHand)} / {fmt.num(i.minStock)}</Badge>
+                </li>
+              )) : <p className="px-3 py-6 text-center text-sm text-muted">{t('nothingLow')}</p>}
+            </ul>
           </Card>
-
-          <Card className="p-5">
-            <div className="mb-2 flex items-baseline justify-between">
-              <h2 className="text-[17px] font-semibold">{t('weeklyTitle')}</h2>
-              <span className="text-sm font-semibold tabular-nums text-info">{fmt.num(weekTotal)}</span>
-            </div>
-            <WeeklyBars data={weekly} />
+          <Card className="h-full">
+            <CardHeader title={t('latestInvoices')} action={<Link href="/invoices" className="text-sm text-accent-soft hover:underline">{t('navInvoices')}</Link>} />
+            <ul className="p-2">
+              {d.lastInvoices?.length ? d.lastInvoices.map((i) => (
+                <li key={i.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-white/5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium" dir="ltr">{i.number}</p>
+                    <p className="truncate text-xs text-muted">{i.supplier} · {fmt.date(i.date)}</p>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums">{fmt.money(i.total)}</span>
+                </li>
+              )) : <p className="px-3 py-6 text-center text-sm text-muted">{t('none')}</p>}
+            </ul>
           </Card>
-
-          {isStock && d.inventory && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <Kpi compact icon={Wallet} tone="accent" label={t('stockValue')} value={fmt.money(d.inventory.value)} />
-                <Kpi compact icon={Boxes} tone="ok" label={t('stockUnits')} value={fmt.num(d.inventory.units)} />
-                <Kpi compact icon={AlertTriangle} tone={d.inventory.lowCount ? 'bad' : 'ok'} label={t('lowItems')} value={fmt.num(d.inventory.lowCount)} href="/inventory" />
-                <Kpi compact icon={ShoppingCart} tone="plum" label={t('openPR')} value={fmt.num(d.inventory.openPurchaseRequests)} href="/purchase-requests" />
-              </div>
-              <Card>
-                <CardHeader title={t('lowStockTitle')} />
-                <ul className="p-2">
-                  {d.lowItems?.length ? d.lowItems.map((i) => (
-                    <li key={i.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-white/5">
-                      <p className="truncate text-sm font-medium">{i.name}</p>
-                      <Badge tone={i.onHand === 0 ? 'bad' : 'warn'}>{fmt.num(i.onHand)} / {fmt.num(i.minStock)}</Badge>
-                    </li>
-                  )) : <p className="px-3 py-6 text-center text-sm text-muted">{t('nothingLow')}</p>}
-                </ul>
-              </Card>
-              <Card>
-                <CardHeader title={t('latestInvoices')} action={<Link href="/invoices" className="text-sm text-accent-soft hover:underline">{t('navInvoices')}</Link>} />
-                <ul className="p-2">
-                  {d.lastInvoices?.map((i) => (
-                    <li key={i.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-white/5">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium" dir="ltr">{i.number}</p>
-                        <p className="truncate text-xs text-muted">{i.supplier} · {fmt.date(i.date)}</p>
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums">{fmt.money(i.total)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            </>
-          )}
-        </div>
-      </div>
+        </section>
+      )}
     </div>
   );
 }
