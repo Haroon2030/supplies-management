@@ -6,6 +6,11 @@ set -euo pipefail
 cd /app/backend
 npx prisma migrate deploy
 
+# نقل بيانات من قاعدة قديمة (مرة واحدة): اضبط LEGACY_DATABASE_URL ثم احذفه بعد نجاح النقل. فشله لا يوقف التشغيل.
+if [ -n "${LEGACY_DATABASE_URL:-}" ]; then
+  node scripts/import-legacy.js || echo "تحذير: تعذّر استيراد البيانات القديمة (يستمر التشغيل)"
+fi
+
 # المدير العام: يُنشأ/يُحدَّث عند النشر إذا ضُبط ADMIN_PASSWORD (و ADMIN_USERNAME، الافتراضي 1)
 if [ -n "${ADMIN_PASSWORD:-}" ]; then
   node scripts/ensure-admin.js || echo "تحذير: تعذر تجهيز المدير العام (يستمر التشغيل)"
