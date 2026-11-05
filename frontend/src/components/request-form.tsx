@@ -43,68 +43,84 @@ export function RequestForm({
 
   return (
     <form
-      className="space-y-6"
+      className="space-y-5"
       onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ justification: justification.trim(), lines, ...(withPlacement ? { departmentId, branchId } : {}) }); }}
     >
       {withPlacement && (
-        <Card className="grid gap-3 p-5 sm:grid-cols-2">
-          <Field label={t('branch')}>
-            <select className="field" required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              <option value="">—</option>{branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </Field>
-          <Field label={t('department')}>
-            <select className="field" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-              <option value="">—</option>{depts.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-          </Field>
+        <Card>
+          <CardHeader title={t('requestInfo')} hint={t('requestInfoHint')} />
+          <div className="grid gap-4 p-5 sm:grid-cols-2">
+            <Field label={t('branch')}>
+              <select className="field" required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                <option value="">{t('chooseBranch')}</option>
+                {branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name.trim()}</option>)}
+              </select>
+            </Field>
+            <Field label={t('department')}>
+              <select className="field" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                <option value="">{t('chooseDepartment')}</option>
+                {depts.data?.map((d) => <option key={d.id} value={d.id}>{d.name.trim()}</option>)}
+              </select>
+            </Field>
+          </div>
         </Card>
       )}
+
       <Card>
-        <CardHeader title={t('item')} />
-        <div className="space-y-3 p-5">
-          {lines.map((l, idx) => (
-            <div key={idx} className="grid grid-cols-[1fr_7rem_auto] items-end gap-2 sm:gap-3">
-              <Field label={idx === 0 ? t('item') : ''}>
-                <select className="field" required value={l.itemId} onChange={(e) => patch(idx, { itemId: e.target.value })} aria-label={t('item')}>
-                  <option value="">{t('chooseItem')}</option>
-                  {grouped.map(([cat, list]) => (
-                    <optgroup key={cat} label={cat}>
-                      {list.map((i) => (
-                        <option key={i.id} value={i.id} disabled={chosen.has(i.id) && i.id !== l.itemId}>{i.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </Field>
-              <Field label={idx === 0 ? t('qty') : ''}>
-                <div className="relative">
-                  <input
-                    className="field tabular-nums" type="number" min={1} step={1} required value={l.quantity}
-                    aria-label={t('qty')}
-                    onChange={(e) => patch(idx, { quantity: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
-                  />
+        <CardHeader title={t('requestedItems')} hint={`${lines.length}`} />
+        <div className="p-5">
+          {!active.length && <p className="mb-4 rounded-xl bg-warn/10 px-4 py-3 text-sm text-warn">{t('noItemsHint')}</p>}
+
+          {/* ترويسة الأعمدة مرة واحدة بدل تكرارها في كل صف */}
+          <div className="mb-2 hidden grid-cols-[2rem_1fr_8rem_2.75rem] gap-3 px-1 text-xs font-medium text-muted sm:grid">
+            <span>#</span><span>{t('item')}</span><span>{t('qty')}</span><span />
+          </div>
+
+          <ul className="space-y-2.5">
+            {lines.map((l, idx) => (
+              <li key={idx} className="grid grid-cols-[2rem_1fr_2.75rem] items-center gap-3 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-inset ring-white/8 sm:grid-cols-[2rem_1fr_8rem_2.75rem]">
+                <span className="grid size-7 place-items-center rounded-full bg-accent/18 text-xs font-bold tabular-nums text-accent-soft">{idx + 1}</span>
+                <div className="min-w-0">
+                  <select className="field" required value={l.itemId} onChange={(e) => patch(idx, { itemId: e.target.value })} aria-label={t('item')}>
+                    <option value="">{t('chooseItem')}</option>
+                    {grouped.map(([cat, list]) => (
+                      <optgroup key={cat} label={cat}>
+                        {list.map((i) => (
+                          <option key={i.id} value={i.id} disabled={chosen.has(i.id) && i.id !== l.itemId}>{i.name}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  {l.itemId && <p className="mt-1 text-xs text-muted">{t('unit')}: {unitOf(l.itemId)}</p>}
                 </div>
-              </Field>
-              <Button type="button" variant="ghost" size="md" disabled={lines.length === 1} aria-label="remove" onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}>
-                <Trash2 className="size-4" />
-              </Button>
-              {l.itemId && <p className="col-span-3 -mt-1 text-xs text-muted">{t('unit')}: {unitOf(l.itemId)}</p>}
-            </div>
-          ))}
-          <Button type="button" variant="glass" size="sm" onClick={() => setLines((ls) => [...ls, { itemId: '', quantity: 1 }])}>
+                <Button type="button" variant="ghost" size="md" className="px-0 sm:order-last" disabled={lines.length === 1} aria-label={t('removeRow')} onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}>
+                  <Trash2 className="size-4" />
+                </Button>
+                <input
+                  className="field tabular-nums col-span-3 sm:col-span-1" type="number" min={1} step={1} required value={l.quantity}
+                  aria-label={t('qty')}
+                  onChange={(e) => patch(idx, { quantity: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+                />
+              </li>
+            ))}
+          </ul>
+
+          <Button type="button" variant="glass" size="sm" className="mt-4" onClick={() => setLines((ls) => [...ls, { itemId: '', quantity: 1 }])}>
             <Plus className="size-4" /> {t('addItem')}
           </Button>
         </div>
       </Card>
 
-      <Card className="p-5">
-        <Field label={t('justification')}>
-          <textarea className="field min-h-24" placeholder={t('justificationPh')} value={justification} onChange={(e) => setJustification(e.target.value)} maxLength={500} />
-        </Field>
+      <Card>
+        <CardHeader title={t('justification')} />
+        <div className="p-5">
+          <textarea className="field min-h-24" placeholder={t('justificationPh')} aria-label={t('justification')} value={justification} onChange={(e) => setJustification(e.target.value)} maxLength={500} />
+          <p className="mt-1.5 text-end text-xs tabular-nums text-muted">{justification.length}/500</p>
+        </div>
       </Card>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {!valid && <p className="text-sm text-muted">{t('completeRequest')}</p>}
         <Button type="submit" size="lg" disabled={!valid} loading={busy}>{submitLabel}</Button>
       </div>
     </form>

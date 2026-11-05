@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import {
-  BarChart3, Bell, Boxes, Info, ClipboardList, Languages, LayoutDashboard, LogOut, Menu, PackageCheck, PlusCircle, Receipt, Settings2, ShoppingCart, Users, X,
+  BarChart3, Bell, Boxes, Info, ClipboardList, LayoutDashboard, LogOut, Menu, PackageCheck, PlusCircle, Receipt, Settings2, ShoppingCart, Users, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -30,7 +30,6 @@ const NAV: NavItem[] = [
   { href: '/setup', label: 'navSetup', icon: Settings2, roles: ['ADMIN'] },
   { href: '/admin', label: 'navAdmin', icon: Users, roles: ['ADMIN'] },
   { href: '/reports', label: 'navReports', icon: BarChart3, roles: ['WAREHOUSE_KEEPER', 'DEPT_MANAGER'] },
-  { href: '/about', label: 'navAbout', icon: Info },
 ];
 
 /** المرحلة التي تنتظر إجراء من كل دور (تغذي الجرس). */
@@ -42,7 +41,7 @@ const ACTION: Partial<Record<Role, { stage: string; key: 'pendingManager' | 'pen
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, ready, logout } = useAuth();
-  const { t, toggle } = useI18n();
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -110,7 +109,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
             )}
           </Link>
-          <button onClick={toggle} className={iconBtn} aria-label={t('lang')} title={t('lang')}><Languages className="size-5" /></button>
+          <Link href="/about" className={cn(iconBtn, pathname === '/about' && 'bg-accent/25 text-accent-soft')} aria-label={t('navAbout')} title={t('navAbout')}><Info className="size-5" /></Link>
           <button onClick={logout} className={cn(iconBtn, 'hover:text-bad')} aria-label={t('signOut')} title={t('signOut')}><LogOut className="size-5" /></button>
         </div>
       </header>
