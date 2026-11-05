@@ -62,7 +62,7 @@ export default function RequestDetailPage() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title={`${t('requestNo')} ${r.number}`}
-        subtitle={`${r.requester.fullName} · ${r.department.name} · ${r.branch.name} · ${fmt.date(r.createdAt)}`}
+        subtitle={`${r.requester.fullName} · ${r.department.name} · ${r.branch.name}${r.section ? ` · ${r.section.name}` : ''} · ${fmt.date(r.createdAt)}`}
         actions={<Badge tone={statusTone[r.status]} className="px-3 py-1 text-sm">{t(`st_${r.status}`)}</Badge>}
       />
 

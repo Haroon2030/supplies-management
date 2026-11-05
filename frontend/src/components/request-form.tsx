@@ -9,7 +9,7 @@ import type { Item } from '@/lib/types';
 import { Button, Card, CardHeader, Field, Spinner } from './ui';
 
 export interface FormLine { itemId: string; quantity: number }
-export interface FormValue { justification: string; lines: FormLine[]; departmentId?: string; branchId?: string }
+export interface FormValue { justification: string; lines: FormLine[]; departmentId?: string; branchId?: string; sectionId?: string }
 
 /** نموذج مشترك لإنشاء الطلب وتعديله بعد إعادته من المدير. `withPlacement`: اختيار الإدارة والفرع (للمدير العام وأمين المستودع). */
 export function RequestForm({
@@ -20,6 +20,8 @@ export function RequestForm({
   const { t } = useI18n();
   const depts = useQuery({ queryKey: ['departments'], queryFn: () => api<{ id: string; name: string }[]>('/departments'), enabled: !!withPlacement });
   const branches = useQuery({ queryKey: ['branches'], queryFn: () => api<{ id: string; name: string }[]>('/branches'), enabled: !!withPlacement });
+  const sections = useQuery({ queryKey: ['sections'], queryFn: () => api<{ id: string; name: string }[]>('/sections'), staleTime: 60_000 });
+  const [sectionId, setSectionId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [branchId, setBranchId] = useState('');
   const items = useQuery({ queryKey: ['items'], queryFn: () => api<Item[]>('/items'), staleTime: 5 * 60_000 });
@@ -44,27 +46,35 @@ export function RequestForm({
   return (
     <form
       className="space-y-5"
-      onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ justification: justification.trim(), lines, ...(withPlacement ? { departmentId, branchId } : {}) }); }}
+      onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit({ justification: justification.trim(), lines, ...(withPlacement ? { departmentId, branchId } : {}), ...(sectionId ? { sectionId } : {}) }); }}
     >
-      {withPlacement && (
-        <Card>
-          <CardHeader title={t('requestInfo')} hint={t('requestInfoHint')} />
-          <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <Field label={t('branch')}>
-              <select className="field" required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                <option value="">{t('chooseBranch')}</option>
-                {branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name.trim()}</option>)}
-              </select>
-            </Field>
-            <Field label={t('department')}>
-              <select className="field" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-                <option value="">{t('chooseDepartment')}</option>
-                {depts.data?.map((d) => <option key={d.id} value={d.id}>{d.name.trim()}</option>)}
-              </select>
-            </Field>
-          </div>
-        </Card>
-      )}
+      {!initial && <Card>
+        <CardHeader title={t('requestInfo')} hint={t('requestInfoHint')} />
+        <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+          {withPlacement && (
+            <>
+              <Field label={t('branch')}>
+                <select className="field" required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                  <option value="">{t('chooseBranch')}</option>
+                  {branches.data?.map((b) => <option key={b.id} value={b.id}>{b.name.trim()}</option>)}
+                </select>
+              </Field>
+              <Field label={t('department')}>
+                <select className="field" required value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                  <option value="">{t('chooseDepartment')}</option>
+                  {depts.data?.map((d) => <option key={d.id} value={d.id}>{d.name.trim()}</option>)}
+                </select>
+              </Field>
+            </>
+          )}
+          <Field label={t('section')}>
+            <select className="field" value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
+              <option value="">{t('chooseSection')}</option>
+              {sections.data?.map((s) => <option key={s.id} value={s.id}>{s.name.trim()}</option>)}
+            </select>
+          </Field>
+        </div>
+      </Card>}
 
       <Card>
         <CardHeader title={t('requestedItems')} hint={`${lines.length}`} />

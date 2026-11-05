@@ -43,6 +43,9 @@ export class CatalogService {
   branches() {
     return this.prisma.branch.findMany({ orderBy: { name: 'asc' } });
   }
+  sections() {
+    return this.prisma.section.findMany({ orderBy: { name: 'asc' } });
+  }
   departments() {
     return this.prisma.department.findMany({ orderBy: { name: 'asc' } });
   }
@@ -92,6 +95,7 @@ export class CatalogController {
 
   @Get('categories') categories() { return this.svc.categories(); }
   @Get('branches') branches() { return this.svc.branches(); }
+  @Get('sections') sections() { return this.svc.sections(); }
   @Get('departments') departments() { return this.svc.departments(); }
   @Get('items') items() { return this.svc.items(); }
   @Get('suppliers') suppliers() { return this.svc.suppliers(); }

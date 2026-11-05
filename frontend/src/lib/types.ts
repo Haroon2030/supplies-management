@@ -24,6 +24,7 @@ export interface RequestRow {
 
 export interface RequestDetail extends Omit<RequestRow, 'lines'> {
   justification: string | null;
+  section?: { id: string; name: string } | null;
   requester: { id: string; fullName: string };
   lines: {
     id: string; quantity: number; approvedQty: number | null; issuedQty: number;

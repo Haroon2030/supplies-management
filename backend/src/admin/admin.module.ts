@@ -39,6 +39,9 @@ export class CreateBranchDto {
   @IsOptional() @IsString() code?: string;
   @IsOptional() @IsString() city?: string;
 }
+export class SectionDto {
+  @IsString() @MinLength(2) name!: string;
+}
 export class CreateDepartmentDto {
   @IsString() @MinLength(2) name!: string;
 }
@@ -131,6 +134,19 @@ export class AdminService {
     return this.prisma.department.update({ where: { id }, data: { name } });
   }
 
+  async createSection(dto: SectionDto) {
+    const name = dto.name.trim();
+    if (await this.prisma.section.findUnique({ where: { name } })) throw new ConflictException('اسم القسم مستخدم');
+    return this.prisma.section.create({ data: { name } });
+  }
+
+  async updateSection(id: string, dto: SectionDto) {
+    const name = dto.name.trim();
+    const dup = await this.prisma.section.findUnique({ where: { name } });
+    if (dup && dup.id !== id) throw new ConflictException('اسم القسم مستخدم');
+    return this.prisma.section.update({ where: { id }, data: { name } });
+  }
+
   async createDepartment(dto: CreateDepartmentDto) {
     const name = dto.name.trim();
     if (await this.prisma.department.findUnique({ where: { name } })) throw new ConflictException('اسم الإدارة مستخدم');
@@ -153,6 +169,8 @@ export class AdminController {
   @Post('branches') createBranch(@Body() dto: CreateBranchDto) { return this.svc.createBranch(dto); }
   @Patch('branches/:id') updateBranch(@Param('id') id: string, @Body() dto: UpdateBranchDto) { return this.svc.updateBranch(id, dto); }
   @Patch('departments/:id') updateDepartment(@Param('id') id: string, @Body() dto: UpdateDepartmentDto) { return this.svc.updateDepartment(id, dto); }
+  @Post('sections') createSection(@Body() dto: SectionDto) { return this.svc.createSection(dto); }
+  @Patch('sections/:id') updateSection(@Param('id') id: string, @Body() dto: SectionDto) { return this.svc.updateSection(id, dto); }
   @Post('departments') createDepartment(@Body() dto: CreateDepartmentDto) { return this.svc.createDepartment(dto); }
 }
 

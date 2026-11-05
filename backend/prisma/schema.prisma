@@ -43,6 +43,13 @@ model Branch {
   invoices    PurchaseInvoice[]
 }
 
+/// القسم: كيان مستقل غير مرتبط بالفروع ولا بالإدارات
+model Section {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  requests Request[]
+}
+
 model Department {
   id       String    @id @default(cuid())
   name     String    @unique // الإدارة كيان مستقل غير مرتبط بالفروع
@@ -164,6 +171,8 @@ model Request {
   department   Department    @relation(fields: [departmentId], references: [id])
   branchId     String
   branch       Branch        @relation(fields: [branchId], references: [id])
+  sectionId    String?
+  section      Section?      @relation(fields: [sectionId], references: [id])
   status       RequestStatus @default(PENDING_MANAGER)
   justification String? @db.Text
   createdAt    DateTime      @default(now())

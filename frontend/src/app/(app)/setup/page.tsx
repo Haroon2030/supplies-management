@@ -19,9 +19,9 @@ interface SetupItem {
 interface Category { id: string; name: string }
 interface Branch { id: string; name: string; code: string | null; city: string | null }
 
-type Tab = 'items' | 'branches' | 'departments';
-const HINT = { items: 'setupItemsHint', branches: 'setupBranchesHint', departments: 'setupDeptsHint' } as const;
-const TAB_LABEL = { items: 'tabItems', branches: 'tabBranches', departments: 'tabDepartments' } as const;
+type Tab = 'items' | 'branches' | 'departments' | 'sections';
+const HINT = { items: 'setupItemsHint', branches: 'setupBranchesHint', departments: 'setupDeptsHint', sections: 'setupSectionsHint' } as const;
+const TAB_LABEL = { items: 'tabItems', branches: 'tabBranches', departments: 'tabDepartments', sections: 'tabSections' } as const;
 
 export default function SetupPage() {
   const { t } = useI18n();
@@ -36,7 +36,7 @@ export default function SetupPage() {
     <>
       <PageHeader title={t('navSetup')} subtitle={t(HINT[tab])} />
       <div role="tablist" className="mb-4 flex gap-2">
-        {(['items', 'branches', 'departments'] as const).map((k) => (
+        {(['items', 'branches', 'departments', 'sections'] as const).map((k) => (
           <button
             key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={cn('rounded-full px-4 py-1.5 text-sm font-medium ring-1 ring-inset transition-colors',
@@ -46,7 +46,7 @@ export default function SetupPage() {
           </button>
         ))}
       </div>
-      {tab === 'items' ? <ItemsTab /> : tab === 'branches' ? <BranchesTab /> : <DepartmentsTab />}
+      {tab === 'items' ? <ItemsTab /> : tab === 'branches' ? <BranchesTab /> : <NameListTab key={tab} kind={tab} />}
     </>
   );
 }
@@ -157,19 +157,27 @@ function ItemDialog({ item, onClose }: { item: SetupItem | null; onClose: () => 
 // الإدارة كيان مستقل: اسم فقط، غير مرتبط بالفروع.
 interface Dept { id: string; name: string }
 
-function DepartmentsTab() {
+const NAME_LIST = {
+  departments: { key: 'departments', path: 'departments', name: 'deptName', add: 'newDepartment', edit: 'editDepartment', empty: 'noDepartments' },
+  sections: { key: 'sections', path: 'sections', name: 'sectionName', add: 'newSection', edit: 'editSection', empty: 'noSections' },
+} as const;
+type NameKind = keyof typeof NAME_LIST;
+
+/** قائمة أسماء مستقلة (الإدارات أو الأقسام): جدول 8 صفوف + ترقيم + إضافة وتعديل. */
+function NameListTab({ kind }: { kind: NameKind }) {
   const { t } = useI18n();
-  const q = useQuery({ queryKey: ['departments'], queryFn: () => api<Dept[]>('/departments') });
+  const L = NAME_LIST[kind];
+  const q = useQuery({ queryKey: [L.key], queryFn: () => api<Dept[]>(`/${L.path}`) });
   const [editing, setEditing] = useState<Dept | 'new' | null>(null);
   const pg = usePagination(q.data ?? []);
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><Button onClick={() => setEditing('new')}><Plus className="size-4" /> {t('newDepartment')}</Button></div>
+      <div className="mb-4 flex justify-end"><Button onClick={() => setEditing('new')}><Plus className="size-4" /> {t(L.add)}</Button></div>
       <Card>
-        {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.length ? <EmptyState title={t('noDepartments')} /> : (
+        {q.isLoading ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.length ? <EmptyState title={t(L.empty)} /> : (
           <TableWrap>
-            <thead><tr><th className={th}>{t('deptName')}</th><th className={th} /></tr></thead>
+            <thead><tr><th className={th}>{t(L.name)}</th><th className={th} /></tr></thead>
             <tbody>
               {pg.slice.map((d) => (
                 <tr key={d.id} className="hover:bg-white/5">
@@ -182,26 +190,27 @@ function DepartmentsTab() {
         )}
         <Pagination {...pg} onPage={pg.setPage} />
       </Card>
-      {editing && <DeptDialog dept={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && <NameDialog kind={kind} row={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
 
-function DeptDialog({ dept, onClose }: { dept: Dept | null; onClose: () => void }) {
+function NameDialog({ kind, row: dept, onClose }: { kind: NameKind; row: Dept | null; onClose: () => void }) {
   const { t } = useI18n();
+  const L = NAME_LIST[kind];
   const qc = useQueryClient();
   const [name, setName] = useState(dept?.name ?? '');
   const save = useMutation({
     mutationFn: () => dept
-      ? api(`/admin/departments/${dept.id}`, { method: 'PATCH', json: { name } })
-      : api('/admin/departments', { method: 'POST', json: { name } }),
-    onSuccess: () => { toast.success(t('saved')); void qc.invalidateQueries({ queryKey: ['departments'] }); onClose(); },
+      ? api(`/admin/${L.path}/${dept.id}`, { method: 'PATCH', json: { name } })
+      : api(`/admin/${L.path}`, { method: 'POST', json: { name } }),
+    onSuccess: () => { toast.success(t('saved')); void qc.invalidateQueries({ queryKey: [L.key] }); onClose(); },
     onError: (e: Error) => toast.error(e.message),
   });
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()} title={dept ? t('editDepartment') : t('newDepartment')}>
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={dept ? t(L.edit) : t(L.add)}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
-        <Field label={t('deptName')}><input className="field" required minLength={2} autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label={t(L.name)}><input className="field" required minLength={2} autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
           <Button type="submit" loading={save.isPending}>{t('save')}</Button>

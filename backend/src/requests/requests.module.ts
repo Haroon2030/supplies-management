@@ -25,6 +25,8 @@ export class SaveRequestDto {
   /** للمدير العام وأمين المستودع فقط (حسابهما بلا إدارة/فرع)؛ غيرهما يُستخدم مكانهما المسجّل. */
   @IsOptional() @IsString() departmentId?: string;
   @IsOptional() @IsString() branchId?: string;
+  /** القسم اختياري ومستقل عن الفرع والإدارة. */
+  @IsOptional() @IsString() sectionId?: string;
   @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => RequestLineDto)
   lines!: RequestLineDto[];
 }
@@ -48,6 +50,7 @@ const FULL_INCLUDE = {
   requester: { select: { id: true, fullName: true } },
   department: { select: { id: true, name: true } },
   branch: { select: { id: true, name: true } },
+  section: { select: { id: true, name: true } },
   lines: { include: { item: { include: { category: true } } } },
   events: { orderBy: { createdAt: 'asc' as const }, include: { actor: { select: { fullName: true, role: true } } } },
   purchaseRequests: { select: { id: true, number: true, status: true } },
@@ -116,13 +119,14 @@ export class RequestsService {
       ]);
       if (!d || !b) throw new BadRequestException('الإدارة أو الفرع غير موجود');
     }
+    if (dto.sectionId && !(await this.prisma.section.count({ where: { id: dto.sectionId } }))) throw new BadRequestException('القسم غير موجود');
     await this.assertItemsActive(dto.lines);
     // طلب مدير الإدارة نفسه يُعتمد تلقائياً ويذهب للمستودع.
     const auto = user.role === Role.DEPT_MANAGER;
     return this.prisma.$transaction(async (tx) => tx.request.create({
       data: {
         number: await nextNumber(tx, 'request'),
-        requesterId: user.id, departmentId, branchId,
+        requesterId: user.id, departmentId, branchId, sectionId: dto.sectionId || null,
         justification: dto.justification,
         status: auto ? 'PENDING_WAREHOUSE' : 'PENDING_MANAGER',
         lines: { create: dto.lines.map((l) => ({ ...l, approvedQty: auto ? l.quantity : null })) },

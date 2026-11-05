@@ -16,7 +16,7 @@ export default function NewRequestPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const create = useMutation({
-    mutationFn: (v: { justification: string; lines: { itemId: string; quantity: number }[]; departmentId?: string; branchId?: string }) =>
+    mutationFn: (v: { justification: string; lines: { itemId: string; quantity: number }[]; departmentId?: string; branchId?: string; sectionId?: string }) =>
       api<RequestDetail>('/requests', { method: 'POST', json: { ...v, justification: v.justification || undefined } }),
     onSuccess: (r) => {
       toast.success(t('requestSent'));
