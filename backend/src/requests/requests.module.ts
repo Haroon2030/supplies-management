@@ -175,7 +175,7 @@ export class RequestsService {
       || (user.role === Role.DEPT_MANAGER && r.departmentId === user.departmentId)
       || (user.role === Role.BRANCH_MANAGER && r.branchId === user.branchId);
     if (!inScope) throw new ForbiddenException('الطلب خارج نطاق صلاحيتك');
-    if (r.requesterId === user.id) throw new ForbiddenException('لا يمكنك اعتماد طلبك بنفسك');
+    if (r.requesterId === user.id && user.role !== Role.ADMIN) throw new ForbiddenException('لا يمكنك اعتماد طلبك بنفسك');
     if (r.status !== 'PENDING_MANAGER') throw new ConflictException('الطلب ليس بانتظار قرار المدير');
     return r;
   }
