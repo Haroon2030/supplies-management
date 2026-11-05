@@ -73,7 +73,14 @@ async function main() {
 
     let total = 0;
     for (const model of order) {
-      const rows = await delegate(src, model).findMany();
+      let rows;
+      try {
+        rows = await delegate(src, model).findMany();
+      } catch (e) {
+        // جدول/عمود غير موجود في القاعدة القديمة (إصدار أقدم): نتجاوزه بدل إفشال النقل كله
+        if (e && (e.code === 'P2021' || e.code === 'P2022')) { console.log(`${model}: غير موجود في المصدر، تُجوّز`); continue; }
+        throw e;
+      }
       let copied = 0;
       for (let i = 0; i < rows.length; i += CHUNK) {
         const res = await delegate(dst, model).createMany({ data: rows.slice(i, i + CHUNK), skipDuplicates: true });

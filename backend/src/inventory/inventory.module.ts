@@ -18,7 +18,10 @@ export class InventoryService {
         batches: {
           where: { qtyRemaining: { gt: 0 } },
           orderBy: [{ receivedAt: 'asc' }, { id: 'asc' }],
-          include: { invoiceLine: { include: { invoice: { select: { number: true } } } } },
+          include: {
+            invoiceLine: { include: { invoice: { select: { number: true } } } },
+            supplyLine: { include: { supply: { select: { number: true } } } },
+          },
         },
       },
     });
@@ -29,7 +32,7 @@ export class InventoryService {
         id: i.id, sku: i.sku, name: i.name, unit: i.unit, category: i.category.name,
         categoryId: i.categoryId, minStock: i.minStock, reorderQty: i.reorderQty, onHand, value, low: onHand <= i.minStock,
         batches: i.batches.map((b) => ({
-          id: b.id, invoiceNumber: b.invoiceLine.invoice.number, receivedAt: b.receivedAt,
+          id: b.id, invoiceNumber: b.invoiceLine?.invoice.number ?? `T-${b.supplyLine?.supply.number ?? '?'}`, receivedAt: b.receivedAt,
           qtyReceived: b.qtyReceived, qtyRemaining: b.qtyRemaining, unitCost: Number(b.unitCost),
         })),
       };

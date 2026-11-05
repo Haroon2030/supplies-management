@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { SuppliesModule } from './supplies/supplies.module';
 import { PrismaModule } from './prisma/prisma.service';
 import { PurchaseRequestsModule } from './purchase-requests/purchase-requests.module';
 import { ReportsModule } from './reports/reports.module';
@@ -19,6 +20,7 @@ import { RequestsModule } from './requests/requests.module';
     CatalogModule,
     InventoryModule,
     InvoicesModule,
+    SuppliesModule,
     RequestsModule,
     PurchaseRequestsModule,
     ReportsModule,

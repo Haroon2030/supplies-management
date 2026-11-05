@@ -42,6 +42,7 @@ model Branch {
   users       User[]
   requests    Request[]
   invoices    PurchaseInvoice[]
+  supplies    SupplyReceipt[]
 }
 
 /// القسم: كيان مستقل غير مرتبط بالفروع ولا بالإدارات
@@ -75,6 +76,7 @@ model User {
   requests     Request[]          @relation("Requester")
   actions      RequestEvent[]
   invoices     PurchaseInvoice[]
+  supplies     SupplyReceipt[]
   issues       StockIssue[]
 }
 
@@ -98,6 +100,7 @@ model Item {
   category   Category @relation(fields: [categoryId], references: [id])
 
   batches         StockBatch[]
+  supplyLines     SupplyLine[]
   requestLines    RequestLine[]
   invoiceLines    InvoiceLine[]
   purchaseLines   PurchaseRequestLine[]
@@ -147,13 +150,45 @@ model InvoiceLine {
   batch     StockBatch?
 }
 
+/// سند توريد: إدخال بضاعة للمخزون بلا فاتورة (تبرع، رصيد افتتاحي، تحويل، عهدة...). يغذّي FIFO كالفواتير.
+model SupplyReceipt {
+  id          String       @id @default(cuid())
+  number      Int          @unique
+  branchId    String
+  branch      Branch       @relation(fields: [branchId], references: [id])
+  receivedAt  DateTime
+  source      String?
+  notes       String?      @db.Text
+  createdById String
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
+  purchaseRequestId String?
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id])
+  lines       SupplyLine[]
+
+  @@index([branchId, receivedAt])
+}
+
+model SupplyLine {
+  id        String        @id @default(cuid())
+  supplyId  String
+  supply    SupplyReceipt @relation(fields: [supplyId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item          @relation(fields: [itemId], references: [id])
+  quantity  Int
+  unitCost  Decimal       @default(0) @db.Decimal(12, 2)
+  batch     StockBatch?
+}
+
 /// دفعة مخزون: كل سطر فاتورة ينشئ دفعة. الصرف FIFO بحسب receivedAt ثم id.
 model StockBatch {
   id          String      @id @default(cuid())
   itemId      String
   item        Item        @relation(fields: [itemId], references: [id])
-  invoiceLineId String    @unique
-  invoiceLine InvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
+  invoiceLineId String?   @unique
+  invoiceLine InvoiceLine? @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
+  supplyLineId  String?   @unique // توريد بلا فاتورة
+  supplyLine  SupplyLine? @relation(fields: [supplyLineId], references: [id], onDelete: Cascade)
   qtyReceived Int
   qtyRemaining Int
   unitCost    Decimal @db.Decimal(12, 2)    
@@ -244,6 +279,7 @@ model PurchaseRequest {
   createdAt DateTime              @default(now())
   lines     PurchaseRequestLine[]
   invoices  PurchaseInvoice[]
+  supplies  SupplyReceipt[]
 
   @@index([status])
 }
