@@ -1,9 +1,9 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CornerUpLeft, PackageCheck, X } from 'lucide-react';
+import { Check, CornerUpLeft, PackageCheck, Trash2, X, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { RequestForm } from '@/components/request-form';
@@ -21,6 +21,7 @@ export default function RequestDetailPage() {
   const { t, fmt } = useI18n();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const router = useRouter();
   const q = useQuery({ queryKey: ['request', id], queryFn: () => api<RequestDetail>(`/requests/${id}`) });
 
   const [qtys, setQtys] = useState<Record<string, number>>({});
@@ -46,6 +47,12 @@ export default function RequestDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const del = useMutation({
+    mutationFn: () => api(`/requests/${id}`, { method: 'DELETE' }),
+    onSuccess: () => { toast.success(t('deletedOk')); refresh(); router.replace('/requests'); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (q.isLoading) return <Spinner />;
   if (q.isError || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const r = q.data;
@@ -56,6 +63,9 @@ export default function RequestDetailPage() {
   const canDecide = r.status === 'PENDING_MANAGER'
     && (user.role === 'ADMIN' || (!isOwner && (user.role === 'DEPT_MANAGER' || user.role === 'BRANCH_MANAGER')));
   const canIssue = ISSUABLE.includes(r.status) && (user.role === 'WAREHOUSE_KEEPER' || user.role === 'ADMIN');
+  const isAdmin = user.role === 'ADMIN';
+  // السوبر أدمن يتخطى الاعتماد ويصرف مباشرة، ويحذف أي طلب
+  const canSkip = isAdmin && (r.status === 'PENDING_MANAGER' || r.status === 'NEEDS_EDIT');
   const canEdit = isOwner && r.status === 'NEEDS_EDIT';
   const canCancel = isOwner && (r.status === 'PENDING_MANAGER' || r.status === 'NEEDS_EDIT');
   const approvedQty = (l: RequestDetail['lines'][number]) => qtys[l.id] ?? l.quantity;
@@ -141,8 +151,18 @@ export default function RequestDetailPage() {
                 <PackageCheck className="size-5" /> {t('issueNow')}
               </Button>
             )}
+            {canSkip && (
+              <Button variant="glass" loading={act.isPending} onClick={() => { if (window.confirm(t('confirmSkip'))) act.mutate({ path: '/issue' }); }}>
+                <Zap className="size-4" /> {t('skipApproval')}
+              </Button>
+            )}
             {canEdit && <Button onClick={() => setEditing(true)}>{t('editAndResend')}</Button>}
             {canCancel && <Button variant="ghost" loading={act.isPending} onClick={() => act.mutate({ path: '/cancel' })}>{t('cancelRequest')}</Button>}
+            {isAdmin && (
+              <Button variant="danger" className="ms-auto" loading={del.isPending} onClick={() => { if (window.confirm(t('confirmDelRequest'))) del.mutate(); }}>
+                <Trash2 className="size-4" /> {t('delRequest')}
+              </Button>
+            )}
           </div>
         </>
       )}

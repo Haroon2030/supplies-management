@@ -1,6 +1,5 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, Get, Injectable, Module, Param, Post, UseGuards,
-} from '@nestjs/common';
+  BadRequestException, Body, ConflictException, Controller, Get, Injectable, Module, Param, Post, UseGuards, Delete, NotFoundException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Prisma, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -62,6 +61,18 @@ export class InvoicesService {
    * إدخال فاتورة: كل سطر ينشئ دفعة مخزون جديدة (تغذي FIFO).
    * إن ربطت بطلب شراء يُعلَّم كمستلم.
    */
+  /** حذف فاتورة (سوبر أدمن). يُرفض إن صُرف جزء من بضاعتها؛ احذف طلبات الصرف المرتبطة أولاً فتعود الكميات. */
+  async remove(id: string) {
+    const lines = await this.prisma.invoiceLine.findMany({ where: { invoiceId: id }, include: { batch: true } });
+    if (!(await this.prisma.purchaseInvoice.findUnique({ where: { id }, select: { id: true } }))) throw new NotFoundException('الفاتورة غير موجودة');
+    if (lines.some((l) => l.batch && l.batch.qtyRemaining < l.batch.qtyReceived)) {
+      throw new ConflictException('صُرف جزء من بضاعة هذه الفاتورة. احذف طلبات الصرف المرتبطة بها أولاً ثم أعد المحاولة.');
+    }
+    await this.prisma.purchaseInvoice.delete({ where: { id } }); // الأسطر والدفعات تُحذف تتابعياً
+    await this.replenishment.safeSync(); // نقص المخزون قد يولّد طلب شراء تلقائياً
+    return { ok: true };
+  }
+
   async create(user: AuthUser, dto: CreateInvoiceDto) {
     const branchId = dto.branchId ?? user.branchId;
     if (!branchId) throw new BadRequestException('حدد الفرع المستلِم للفاتورة');
@@ -124,6 +135,7 @@ export class InvoicesController {
   @Get() list() { return this.svc.list(); }
   @Get(':id') get(@Param('id') id: string) { return this.svc.get(id); }
   @Post() create(@CurrentUser() u: AuthUser, @Body() dto: CreateInvoiceDto) { return this.svc.create(u, dto); }
+  @Delete(':id') @Roles(Role.ADMIN) remove(@Param('id') id: string) { return this.svc.remove(id); }
 }
 
 @Module({ imports: [PurchaseRequestsModule], controllers: [InvoicesController], providers: [InvoicesService] })

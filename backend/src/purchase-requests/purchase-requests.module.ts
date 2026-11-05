@@ -1,4 +1,4 @@
-import { ConflictException, Controller, Get, Injectable, Module, Param, Post, UseGuards } from '@nestjs/common';
+import { ConflictException, Controller, Delete, Get, Injectable, Module, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard, Roles, RolesGuard } from '../common/auth';
@@ -21,6 +21,16 @@ export class PurchaseRequestsService {
     });
   }
 
+  /** حذف طلب شراء (سوبر أدمن). الفواتير المرتبطة تبقى ويُفك ارتباطها فقط. */
+  async remove(id: string) {
+    await this.prisma.purchaseRequest.findUniqueOrThrow({ where: { id } });
+    await this.prisma.$transaction([
+      this.prisma.purchaseInvoice.updateMany({ where: { purchaseRequestId: id }, data: { purchaseRequestId: null } }),
+      this.prisma.purchaseRequest.delete({ where: { id } }),
+    ]);
+    return { ok: true };
+  }
+
   async markOrdered(id: string) {
     const pr = await this.prisma.purchaseRequest.findUniqueOrThrow({ where: { id } });
     if (pr.status !== 'OPEN') throw new ConflictException('طلب الشراء ليس مفتوحاً');
@@ -37,6 +47,7 @@ export class PurchaseRequestsController {
   constructor(private readonly svc: PurchaseRequestsService) {}
   @Get() list() { return this.svc.list(); }
   @Post(':id/ordered') ordered(@Param('id') id: string) { return this.svc.markOrdered(id); }
+  @Delete(':id') @Roles(Role.ADMIN) remove(@Param('id') id: string) { return this.svc.remove(id); }
 }
 
 @Module({

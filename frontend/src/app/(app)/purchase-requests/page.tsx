@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Zap } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
 import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, Spinner } from '@/components/ui';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { api } from '@/lib/api';
@@ -15,7 +17,13 @@ const tone: Record<PurchaseRequestRow['status'], Tone> = { OPEN: 'accent', ORDER
 
 export default function PurchaseRequestsPage() {
   const { t, fmt } = useI18n();
+  const { user } = useAuth();
   const qc = useQueryClient();
+  const del = useMutation({
+    mutationFn: (id: string) => api(`/purchase-requests/${id}`, { method: 'DELETE' }),
+    onSuccess: () => { toast.success(t('deletedOk')); void qc.invalidateQueries({ queryKey: ['purchase-requests'] }); void qc.invalidateQueries({ queryKey: ['dashboard'] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const q = useQuery({ queryKey: ['purchase-requests'], queryFn: () => api<PurchaseRequestRow[]>('/purchase-requests'), refetchInterval: 30_000 });
   const pg = usePagination(q.data ?? []);
   const ordered = useMutation({
@@ -56,6 +64,13 @@ export default function PurchaseRequestsPage() {
                   </li>
                 ))}
               </ul>
+              {user?.role === 'ADMIN' && (
+                <div className="mb-2 flex justify-end">
+                  <Button variant="danger" size="sm" loading={del.isPending && del.variables === p.id} onClick={() => { if (window.confirm(t('confirmDelPR'))) del.mutate(p.id); }}>
+                    <Trash2 className="size-3.5" /> {t('delPR')}
+                  </Button>
+                </div>
+              )}
               {(p.status === 'OPEN' || p.status === 'ORDERED') && (
                 <div className="flex flex-wrap gap-2">
                   {p.status === 'OPEN' && <Button variant="glass" size="sm" loading={ordered.isPending && ordered.variables === p.id} onClick={() => ordered.mutate(p.id)}>{t('markOrdered')}</Button>}

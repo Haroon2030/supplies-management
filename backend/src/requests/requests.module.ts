@@ -1,7 +1,6 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Injectable, Module,
-  NotFoundException, Param, Patch, Post, Query, UseGuards,
-} from '@nestjs/common';
+  NotFoundException, Param, Patch, Post, Query, UseGuards, Delete } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Prisma, RequestStatus, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -158,6 +157,38 @@ export class RequestsService {
     });
   }
 
+  /** حذف طلب نهائياً (سوبر أدمن). إن كان قد صُرف منه تُعاد الكميات إلى دفعاتها قبل الحذف. */
+  async remove(id: string) {
+    const req = await this.prisma.request.findUnique({
+      where: { id },
+      include: { issues: { include: { allocations: true } } },
+    });
+    if (!req) throw new NotFoundException('الطلب غير موجود');
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const issue of req.issues) {
+        for (const a of issue.allocations) {
+          await tx.stockBatch.update({ where: { id: a.batchId }, data: { qtyRemaining: { increment: a.quantity } } });
+        }
+        await tx.issueAllocation.deleteMany({ where: { issueId: issue.id } });
+      }
+      await tx.stockIssue.deleteMany({ where: { requestId: id } });
+
+      // طلبات الشراء الناتجة عن هذا الطلب: تُحذف، وإن ارتبطت بها فاتورة يُفك الارتباط فقط
+      const prs = await tx.purchaseRequest.findMany({ where: { requestId: id }, include: { invoices: { select: { id: true } } } });
+      for (const pr of prs) {
+        if (pr.invoices.length) await tx.purchaseRequest.update({ where: { id: pr.id }, data: { requestId: null } });
+        else await tx.purchaseRequest.delete({ where: { id: pr.id } });
+      }
+
+      await tx.requestEvent.deleteMany({ where: { requestId: id } });
+      await tx.requestLine.deleteMany({ where: { requestId: id } });
+      await tx.request.delete({ where: { id } });
+    });
+    await this.replenishment.safeSync();
+    return { ok: true };
+  }
+
   async cancel(user: AuthUser, id: string) {
     const r = await this.prisma.request.findUnique({ where: { id } });
     if (!r || r.requesterId !== user.id) throw new NotFoundException('الطلب غير موجود');
@@ -230,8 +261,26 @@ export class RequestsService {
    * - قابل للإعادة بعد وصول فاتورة الشراء.
    */
   async issue(user: AuthUser, id: string) {
-    const req = await this.prisma.request.findUnique({ where: { id }, include: { lines: true } });
+    let req = await this.prisma.request.findUnique({ where: { id }, include: { lines: true } });
     if (!req) throw new NotFoundException('الطلب غير موجود');
+
+    // السوبر أدمن يتخطى الاعتماد: يُعتمد الطلب بكمياته المطلوبة ثم يُصرف مباشرة
+    if (user.role === Role.ADMIN && (req.status === 'PENDING_MANAGER' || req.status === 'NEEDS_EDIT')) {
+      const lines = req.lines;
+      await this.prisma.$transaction(async (tx) => {
+        for (const l of lines) await tx.requestLine.update({ where: { id: l.id }, data: { approvedQty: l.quantity } });
+        await tx.request.update({
+          where: { id },
+          data: {
+            status: 'PENDING_WAREHOUSE',
+            events: { create: { actorId: user.id, action: 'APPROVED', note: 'تخطّي الاعتماد: السوبر أدمن' } },
+          },
+        });
+      });
+      req = await this.prisma.request.findUnique({ where: { id }, include: { lines: true } });
+      if (!req) throw new NotFoundException('الطلب غير موجود');
+    }
+
     if (!ISSUABLE.includes(req.status)) throw new ConflictException('الطلب غير جاهز للصرف');
 
     await this.prisma.$transaction(async (tx) => {
@@ -335,6 +384,9 @@ export class RequestsController {
 
   @Post(':id/issue') @Roles(Role.WAREHOUSE_KEEPER)
   issue(@CurrentUser() u: AuthUser, @Param('id') id: string) { return this.svc.issue(u, id); }
+
+  @Delete(':id') @Roles(Role.ADMIN)
+  remove(@Param('id') id: string) { return this.svc.remove(id); }
 }
 
 @Module({ imports: [PurchaseRequestsModule], controllers: [RequestsController], providers: [RequestsService] })

@@ -229,6 +229,17 @@ function InvoiceDialog({ prId, onClose }: { prId: string | null; onClose: () => 
 /* ---------------------- الفاتورة الرسمية مع رمز QR ---------------------- */
 function InvoiceDocumentDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const { t, fmt, dir } = useI18n();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const del = useMutation({
+    mutationFn: () => api(`/invoices/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast.success(t('deletedOk'));
+      for (const k of ['invoices', 'inventory', 'purchase-requests', 'dashboard']) void qc.invalidateQueries({ queryKey: [k] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const q = useQuery({ queryKey: ['invoice', id], queryFn: () => api<InvoiceDetail>(`/invoices/${id}`) });
   const inv = q.data;
   const [qr, setQr] = useState('');
@@ -262,7 +273,12 @@ function InvoiceDocumentDialog({ id, onClose }: { id: string; onClose: () => voi
     >
       {q.isLoading ? <Spinner /> : q.isError || !inv ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : (
         <>
-          <div className="no-print mb-4 flex justify-end">
+          <div className="no-print mb-4 flex justify-end gap-2">
+            {user?.role === 'ADMIN' && (
+              <Button variant="danger" loading={del.isPending} onClick={() => { if (window.confirm(t('confirmDelInvoice'))) del.mutate(); }}>
+                <Trash2 className="size-4" /> {t('delInvoice')}
+              </Button>
+            )}
             <Button onClick={print}><Printer className="size-4" /> {t('print')}</Button>
           </div>
 
